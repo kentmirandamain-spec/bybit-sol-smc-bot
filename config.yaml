@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# Bybit SOLUSDT SMC bot configuration
+# API keys are NOT stored here: put them in .env (BYBIT_API_KEY / BYBIT_API_SECRET)
+# ---------------------------------------------------------------------------
+
+# SAFETY FLAGS -------------------------------------------------------------
+dry_run: true          # true = only log signals / would-be orders. Set false for LIVE orders.
+testnet: false         # true = use api-testnet.bybit.com (needs testnet API keys)
+# Env vars BOT_DRY_RUN / BOT_TESTNET (true/false) override these two values.
+
+symbol: SOLUSDT        # linear USDT perpetual
+category: linear
+
+htf_interval: 60       # higher timeframe (minutes) for bias / structure
+ltf_interval: 15       # lower timeframe (minutes) for entries
+ltf_bars: 1000         # closed LTF candles loaded each evaluation
+htf_bars: 500          # closed HTF candles loaded each evaluation
+poll_seconds: 20       # how often the loop wakes up
+
+# RISK ---------------------------------------------------------------------
+risk:
+  risk_usdt: 5.0               # fixed USDT risked per trade, regardless of balance
+  include_fees_in_risk: true   # shrink size so entry+exit fees are inside the 5 USDT
+  maker_fee: 0.0002            # Bybit non-VIP linear maker (limit entry)
+  taker_fee: 0.00055           # Bybit non-VIP linear taker (stop-loss exit)
+  leverage: 5                  # set via API on start; isolated margin
+  margin_mode: isolated        # isolated | keep  (keep = don't touch margin mode)
+  max_open_positions: 1        # the bot only ever holds one SOLUSDT position
+  max_daily_loss_usdt: 15      # stop opening new trades for the UTC day after this loss (0 = off)
+  max_trades_per_day: 6        # 0 = unlimited
+
+# STRATEGY -----------------------------------------------------------------
+strategy:
+  swing_left: 3                # LTF fractal swing lookback (bars each side)
+  swing_right: 3
+  htf_swing_left: 3
+  htf_swing_right: 3
+  sweep_lookback: 100          # swings older than this (bars) are ignored for sweeps
+  sweep_max_age: 30            # CHoCH must come within N LTF bars after the sweep
+  require_choch: true          # true = CHoCH only; false = CHoCH or BOS
+  use_htf_bias: true           # only trade in HTF structure direction
+  entry_mode: ob               # ob | fvg | ob_or_fvg  (zone used for the limit entry)
+  stop_buffer_atr: 0.1         # extra stop distance beyond OB/sweep extreme, in ATR(14)
+  min_stop_pct: 0.25           # skip setups with stop closer than this % (fee drag)
+  max_stop_pct: 4.0            # skip setups with stop wider than this %
+  tp_mode: rr                  # rr | liquidity (nearest unswept opposing swing)
+  rr: 2.0                      # take profit R multiple (tp_mode rr)
+  min_rr: 1.5                  # liquidity mode: ignore targets closer than this
+  max_rr: 4.0                  # liquidity mode: cap target
+  entry_expiry_bars: 12        # cancel unfilled limit after N LTF bars
+  warmup_bars: 50
+
+# MARKET DATA --------------------------------------------------------------
+# bybit (default, same feed as execution). "okx" is a public fallback feed ONLY
+# for backtests / dry-run smoke tests from regions where Bybit's API is blocked.
+market_data_source: bybit
+
+logging:
+  file: logs/bot.log
+  level: INFO
+state_file: state/bot_state.json
