@@ -123,6 +123,7 @@ th{position:sticky;top:0;background:var(--panel2);color:var(--mut);font-weight:6
 td{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}th.n{text-align:right}
 tbody tr:hover{background:#ffffff05}
+tr.loss td{background:#ea394314}
 .st{font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:5px;text-transform:uppercase}
 .st-win{background:#16c78420;color:var(--up)}.st-loss{background:#ea394320;color:var(--down)}.st-open{background:#4c8dff22;color:#9dbfff}
 .st-pending{background:#f5a52420;color:#ffc35c}.st-other{background:#ffffff0d;color:var(--mut)}
@@ -178,6 +179,7 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
     <symbol id="i-set" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></g></symbol>
     <symbol id="i-bt" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 2M3.5 12a8.5 8.5 0 1 0 2.5-6M3 4v4h4"/></symbol>
     <symbol id="i-log" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 4h14v16H5zM8.5 9l2.5 2.5L8.5 14M13 14h3"/></symbol>
+    <symbol id="i-learn" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 19V5m0 14h16M8 16l3-4 2.5 2L17 8"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13l10.5-6.5z"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></symbol>
   </defs>
@@ -191,6 +193,7 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
       <a data-p="trades"><svg><use href="#i-tr"/></svg>Trades</a>
       <a data-p="settings"><svg><use href="#i-set"/></svg>Settings</a>
       <a data-p="backtest"><svg><use href="#i-bt"/></svg>Backtest</a>
+      <a data-p="learning"><svg><use href="#i-learn"/></svg>Learning</a>
       <a data-p="logs"><svg><use href="#i-log"/></svg>Logs</a>
     </nav>
     <div class="side-foot">SOLUSDT · USDT perpetual<br>Smart Money Concepts<br><span id="sfmode">–</span><br><span id="appver">v<!--APP_VERSION--></span><br>Local only · 127.0.0.1</div>
@@ -366,6 +369,56 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
         <div class="card"><h3>Output</h3><pre class="out" id="btout">No backtest run yet.</pre></div>
       </section>
 
+      <!-- LEARNING -->
+      <section class="page" id="p-learning">
+        <div class="grid kpis" style="margin-bottom:14px">
+          <div class="card kpi"><div class="l">Closed trades</div><div class="v" id="ln-n">–</div><div class="s" id="ln-n-s">journal</div></div>
+          <div class="card kpi"><div class="l">Win rate</div><div class="v" id="ln-wr">–</div><div class="s" id="ln-wr-s">with 95% interval</div></div>
+          <div class="card kpi"><div class="l">Expectancy</div><div class="v" id="ln-exp">–</div><div class="s">avg R net of fees</div></div>
+          <div class="card kpi"><div class="l">Max drawdown</div><div class="v" id="ln-dd">–</div><div class="s">in R</div></div>
+          <div class="card kpi"><div class="l">Score gate</div><div class="v" id="ln-score">Off</div><div class="s" id="ln-score-s">until enough data</div></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <h3>Cumulative R <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:500">closed tradable trades</span></h3>
+          <div class="chartwrap" style="height:180px"><canvas id="leq"></canvas></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <h3>Rebuild &amp; walk-forward</h3>
+          <div class="toolbar" style="margin:0">
+            <label class="f" style="width:120px">Days<input id="lndays" type="number" value="90" min="30" max="365"></label>
+            <label class="f" style="width:200px">Data<select id="lnsrc"><option value="bybit">Bybit public</option><option value="okx">OKX public</option></select></label>
+            <button class="btn b-go" id="bLearn" type="button" onclick="rebuildLearn()" style="align-self:flex-end">Rebuild journal &amp; retrain</button>
+          </div>
+          <div class="note" id="lndue">Replays history, writes <b>state/journal</b>, then checks filters and the score cutoff on the most recent held-out weeks. A rule is kept only if expectancy improves there and drawdown does not get worse. Live trading never applies this by itself.</div>
+          <pre class="out" id="lnout" style="margin-top:12px">No study run this session.</pre>
+        </div>
+        <div class="card" id="lnprop" style="margin-bottom:14px">
+          <h3>Pending proposal</h3>
+          <div id="lnpropb" class="empty">No study yet.</div>
+          <div class="toolbar" style="margin-top:12px">
+            <button class="btn b-go" id="bApply" type="button" onclick="applyLearn()" disabled>Apply</button>
+            <button class="btn b-warn" id="bReject" type="button" onclick="rejectLearn()" disabled>Reject</button>
+          </div>
+        </div>
+        <div class="sgrid">
+          <div class="card">
+            <h3>Losing conditions</h3>
+            <div class="note" style="margin-top:0">Buckets with at least 20 trades and negative expectancy. Highlighted rows are descriptive, not automatic filters.</div>
+            <div class="tbl" style="max-height:360px;margin-top:10px"><table><thead><tr><th>Feature</th><th>Bucket</th><th class=n>N</th><th class=n>Win rate</th><th class=n>Expectancy</th></tr></thead><tbody id="lnbuck"></tbody></table></div>
+          </div>
+          <div class="card">
+            <h3>Active filters &amp; skips</h3>
+            <div id="lnfilt" class="empty">No active filters. The bot takes every setup the strategy allows.</div>
+            <div class="tbl" style="max-height:240px;margin-top:10px"><table><thead><tr><th>When</th><th>Side</th><th>Why skipped</th></tr></thead><tbody id="lnskip"></tbody></table></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <h3>Score vs outcome</h3>
+          <div class="note" style="margin-top:0">Each bar is the share of winners in that score band, from the saved model. The gate stays off until Apply sets a minimum and the journal has enough trades.</div>
+          <div id="lnbands" style="margin-top:10px"></div>
+        </div>
+      </section>
+
       <!-- LOGS -->
       <section class="page" id="p-logs">
         <div class="card">
@@ -383,6 +436,7 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
   <a data-p="trades"><svg><use href="#i-tr"/></svg>Trades</a>
   <a data-p="settings"><svg><use href="#i-set"/></svg>Settings</a>
   <a data-p="backtest"><svg><use href="#i-bt"/></svg>Backtest</a>
+  <a data-p="learning"><svg><use href="#i-learn"/></svg>Learn</a>
   <a data-p="logs"><svg><use href="#i-log"/></svg>Logs</a>
 </nav>
 <div id="toasts"></div>
@@ -402,14 +456,15 @@ const sgnNum=(x,d=2,suf='')=>isNum(x)?((+x>0?'+':'')+num(x,d)+suf):'–';
 const cls=x=>!isNum(x)?'':(+x>0?'up':+x<0?'down':'');
 const parseT=iso=>{if(!iso)return NaN;return Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z')};
 const ltime=iso=>{const t=parseT(iso);return isNaN(t)?'–':new Date(t).toLocaleString([],{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'})};
-const PAGES={overview:'Overview',trades:'Trades',settings:'Settings',backtest:'Backtest',logs:'Logs'};
+const PAGES={overview:'Overview',trades:'Trades',settings:'Settings',backtest:'Backtest',learning:'Learning',logs:'Logs'};
 
 /* ---------- navigation ---------- */
 function go(p){if(!PAGES[p])p='overview';page=p;
   document.querySelectorAll('.page').forEach(e=>e.classList.toggle('on',e.id==='p-'+p));
   document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
   $('ptitle').textContent=PAGES[p];if(location.hash!=='#'+p)history.replaceState(null,'','#'+p);
-  if(p==='overview'){if(chartMode==='bot')requestAnimationFrame(drawChart);else mountTv()}if(p==='logs')refreshLog()}
+  if(p==='overview'){if(chartMode==='bot')requestAnimationFrame(drawChart);else mountTv()}
+  if(p==='logs')refreshLog();if(p==='learning')loadLearning()}
 document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.onclick=()=>go(a.dataset.p));
 window.addEventListener('hashchange',()=>go(location.hash.slice(1)));
 
@@ -444,6 +499,50 @@ function parseBacktest(j){const o=j.output||'';const m=o.match(/\[net of est\. f
   $('b-r').innerHTML=`<span class="${cls(m[5])}">${sgnNum(m[5],2,' R')}</span>`;$('b-rg').textContent=g?`gross ${sgnNum(g[1],2,' R')}`:'';
   $('b-dd').innerHTML=`<span class="down">${num(m[7])} R</span>`;
   if(p){$('b-pnl').innerHTML=`<span class="${cls(p[2])}">${sgnNum(p[2])}</span>`;$('b-ls').textContent=`${p[3]} longs · ${p[4]} shorts @ ${p[1]} USDT risk`}}
+
+/* ---------- learning ---------- */
+function rTxt(x){return x==null?'–':((x>0?'+':'')+Number(x).toFixed(3)+' R')}
+function drawEquity(points){const cv=$('leq');if(!cv)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  if(!points||points.length<2){g.fillStyle='#5a6779';g.font='12px sans-serif';g.fillText('No closed trades in the journal yet',16,H/2);return}
+  const ys=points.map(p=>p.r);let lo=Math.min(0,...ys),hi=Math.max(0,...ys);if(hi-lo<1e-6){hi+=1;lo-=1}
+  const x=i=>8+(W-16)*i/(points.length-1),y=v=>10+(H-20)*(hi-v)/(hi-lo);
+  g.strokeStyle='#1c2532';g.beginPath();g.moveTo(8,y(0));g.lineTo(W-8,y(0));g.stroke();
+  g.strokeStyle='#34d399';g.lineWidth=1.6;g.beginPath();points.forEach((p,i)=>{const xx=x(i),yy=y(p.r);i?g.lineTo(xx,yy):g.moveTo(xx,yy)});g.stroke()}
+function loadLearning(){api('/api/learning').then(j=>{
+  const s=j.summary||{};$('ln-n').textContent=s.n??0;$('ln-n-s').textContent=(j.setups||0)+' setups journaled';
+  $('ln-wr').textContent=s.win_rate==null?'–':(100*s.win_rate).toFixed(1)+'%';
+  $('ln-wr-s').textContent=s.ci_low==null?'':(`95% CI ${(100*s.ci_low).toFixed(0)}–${(100*s.ci_high).toFixed(0)}%`);
+  $('ln-exp').innerHTML=`<span class="${cls(s.expectancy)}">${rTxt(s.expectancy)}</span>`;
+  $('ln-dd').textContent=s.max_dd==null?'–':s.max_dd.toFixed(2)+' R';
+  const gate=j.enabled&&j.min_score>0&&j.closed>=j.min_trades;
+  $('ln-score').textContent=gate?('≥ '+j.min_score):'Off';
+  $('ln-score-s').textContent=j.closed+' / '+j.min_trades+' closed trades';
+  $('lndue').innerHTML=j.due?'A weekly check is due. Rebuild when you want a fresh proposal. Live trading will not apply it on its own.':'The last study is under a week old. You can still rebuild.';
+  const rows=(j.buckets||[]).filter(b=>b.losing);
+  $('lnbuck').innerHTML=rows.length?rows.map(b=>`<tr class="loss"><td>${esc(b.feature)}</td><td>${esc(b.bucket)}</td><td class=n>${b.n}</td><td class=n>${b.win_rate==null?'–':(100*b.win_rate).toFixed(0)+'%'}</td><td class="n ${cls(b.expectancy)}">${rTxt(b.expectancy)}</td></tr>`).join(''):'<tr><td colspan=5 class="empty" style="padding:16px">No losing bucket with 20+ trades yet.</td></tr>';
+  const fl=j.filters||[];$('lnfilt').innerHTML=fl.length?fl.map(f=>`<div class="note" style="margin-top:6px">${esc(f.why||(f.feature+' '+f.op+' '+f.value))}</div>`).join(''):'<div class="empty">No active filters. The bot takes every setup the strategy allows.</div>';
+  const sk=j.skips||[];$('lnskip').innerHTML=sk.length?sk.slice().reverse().map(s=>`<tr><td>${esc(s.created||'')}</td><td>${esc(s.side||'')}</td><td>${esc(s.reason||'')}</td></tr>`).join(''):'<tr><td colspan=3 class="empty" style="padding:12px">No skipped setups.</td></tr>';
+  const bands={};(j.scores||[]).forEach(s=>{const k=Math.min(90,Math.floor(s.score/10)*10);(bands[k]=bands[k]||[]).push(s)});
+  $('lnbands').innerHTML=Object.keys(bands).sort((a,b)=>a-b).map(k=>{const g=bands[k],w=g.filter(x=>x.win).length;const p=g.length?100*w/g.length:0;return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><span class="num dim" style="width:64px">${k}–${+k+9}</span><div style="flex:1;background:#1c2532;border-radius:6px;height:10px"><div style="width:${p}%;height:10px;border-radius:6px;background:#16c784"></div></div><span class="num">${w}/${g.length}</span></div>`}).join('')||'<div class="empty">No model scores yet.</div>';
+  const p=j.proposal;const box=$('lnpropb');
+  if(!p){box.className='empty';box.textContent='No study yet.'}
+  else{box.className='';const b=p.baseline_oos||{},f=p.filtered_oos||{},m=p.model_oos||{};
+    box.innerHTML=`<div>${esc(p.why||'')}</div><div class="note">${esc(p.note||'')}</div>
+      <dl class="rows" style="margin-top:10px"><dt>Held-out baseline</dt><dd>${b.n??'–'} · ${_fmtStat(b)}</dd>
+      <dt>With filters</dt><dd>${p.adopt_filters?(f.n+' · '+_fmtStat(f)):'not adopted'}</dd>
+      <dt>With score</dt><dd>${p.adopt_score?(m.n+' · '+_fmtStat(m)):'not adopted'}</dd>
+      <dt>Status</dt><dd>${esc(p.status||'')}</dd></dl>`;}
+  const pending=p&&p.status==='pending'&&p.adoptable;$('bApply').disabled=!pending;$('bReject').disabled=!(p&&p.status==='pending');
+  requestAnimationFrame(()=>drawEquity(j.equity||[]));
+}).catch(e=>{$('lnout').textContent=e.message})}
+function _fmtStat(s){if(!s||s.win_rate==null)return '–';return `${(100*s.win_rate).toFixed(0)}% win · ${rTxt(s.expectancy)} · DD ${s.max_dd==null?'–':s.max_dd.toFixed(2)+'R'}`}
+function rebuildLearn(){modal('Rebuild the learning journal?','This downloads public candles, replays the strategy and writes a proposal. It does not change config unless dry-run auto-apply is on in config.yaml.','','Rebuild',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/rebuild',{confirm:true,days:+val('lndays'),source:val('lnsrc')});toast(j.message);pollJob(j.job,$('lnout'),$('bLearn'),()=>loadLearning())}catch(e){toast(e.message,true)}})}
+function applyLearn(){modal('Apply this learning proposal?','Turns learning on in config.yaml and saves the filters. A copy of the current config is kept under backups/. Restart the bot afterwards. Live mode will not do this by itself.','','Apply',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/apply',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+function rejectLearn(){modal('Reject this proposal?','The proposal is marked rejected. config.yaml stays as it is.','','Reject',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/reject',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
 
 /* ---------- updates ---------- */
 function paintAbout(a){if(!a)return;ABOUT=a;

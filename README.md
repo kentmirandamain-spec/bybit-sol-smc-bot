@@ -170,6 +170,22 @@ sudo systemctl enable --now smcbot
 journalctl -u smcbot -f
 ```
 
+## Learning from the journal
+
+The bot writes every setup it sees — taken, skipped, or expired, from a backtest, dry-run, or live run — to `state/journal/` (gitignored). Each row stores the market at the signal: UTC session (Asia 00–06, London 07–11, New York 12–20, otherwise off), hour, weekday, ATR % and ATR percentile, higher-timeframe drift and an ADX-like strength, distance from the higher-timeframe swing, sweep depth, order-block and fair-value-gap size, stop distance, distance to opposing liquidity, volume versus its average, Bybit funding when that public feed answers, and the number of losses in a row before this setup. Closed trades also store net R (fees included, same sizing as `backtest.py`), plus how far price went for and against the trade.
+
+`python learn.py --days 90` (or the **Learning** tab → **Rebuild journal & retrain**) replays that history and runs a walk-forward check:
+
+- The model is an L2-regularized logistic regression implemented in numpy. No scikit-learn and no new compiled packages.
+- Its cutoff, if any, is chosen on an inner slice of the older data by **expectancy** (average R per trade, net of fees), not by win rate. Win rate is still reported.
+- A filter (skip a session, a side, a weekday, or one of a few fixed feature cuts) is proposed only when that bucket lost money in the training window **and** in the most recent held-out weeks, with a minimum number of trades in both. At most three filters are stacked, and only while the held-out expectancy rises and drawdown does not get worse.
+- The score gate stays at 0 until the journal has `learning.min_trades` closed trades (default 100) and the held-out window says the cutoff helps.
+- **Apply** in the dashboard is the only way a proposal changes `config.yaml`. A copy of the previous file is kept under `backups/`. Live and testnet runs never apply a proposal on their own. Dry-run applies one automatically only when `learning.auto_apply_dry_run` is true.
+
+### What a 90-day study actually found
+
+Ran 19 Nov 2026. Bybit's public klines were blocked, so the download used OKX SOL-USDT-SWAP. 81 setups, **39** closed trades that fit the 5 USDT size rules. Win rate **25.6%** (95% interval about 15–41%), expectancy **−0.32R**, total **−12.4R**, max drawdown **19.5R**. The last 4 weeks held out only **9** trades and the training window had **30**, under the 40 / 20 minimum, so **no filter and no score cutoff were adopted**. There is no out-of-sample improvement to show. The full window is still a losing strategy; the guard is doing its job by refusing to invent a rule from a handful of trades.
+
 ## Backtest notes
 `backtest.py` uses Bybit public klines by default. If Bybit blocks your IP use `--source okx`
 (OKX SOL-USDT-SWAP – very close to Bybit's price, not identical). Limit fills when price trades

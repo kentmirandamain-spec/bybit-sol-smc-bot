@@ -32,6 +32,7 @@ from dotenv import load_dotenv
 from pybit.exceptions import FailedRequestError, InvalidRequestError
 from pybit.unified_trading import HTTP
 
+import learn
 import market_data
 import risk
 import smc
@@ -306,6 +307,23 @@ class Bot:
                 return t
         return None
 
+    def _sync_learn(self, setups):
+        """Upsert every replayed setup. A deliberate skip stays skipped on later polls."""
+        source = "dry_run" if self.dry else "live"
+        skip = getattr(self, "_learn_skip", None)
+        skip_id, gate = skip if skip else (None, {})
+        rows = []
+        for s in setups:
+            if self._setup_id(s) == skip_id:
+                rows.append(learn.row_from_setup(
+                    s, source=source, cfg=self.cfg, taken=False,
+                    skip_reason=(gate or {}).get("reason") or "", score=(gate or {}).get("score")))
+            else:
+                rows.append(learn.row_from_setup(s, source=source, cfg=self.cfg))
+        self._learn_skip = None
+        if rows:
+            learn.merge_rows(ROOT, rows)
+
     def _journal_new(self, st, sz, sid, order_id=None):
         self.trades.append(dict(
             id=sid, mode=self.mode, symbol=self.symbol, side=st.side, created_at=fmt_ms(st.created_ts),
@@ -431,11 +449,17 @@ class Bot:
         self.status.update(htf_bias={1: "BULLISH", -1: "BEARISH"}.get(bias, "NEUTRAL"), last_bar=bar_time,
                            last_eval_at=now_iso(), price=self.last_price(close) or close)
 
+        self._learn_skip = None
         if self.dry:
             self._sync_dry_journal(setups)
             self._dry_handle(pending, close)
         else:
             self._live_handle(pending, close)
+        self._sync_learn(setups)
+        if not getattr(self, "_learn_due_logged", False) and learn.retrain_due(ROOT):
+            log.info("Learning: a weekly walk-forward is due. Open the dashboard Learning tab, "
+                     "or run: python learn.py --days 90")
+            self._learn_due_logged = True
         self._save_state()
         self._refresh_views(self.status["price"])
 
@@ -454,6 +478,13 @@ class Bot:
         if sid in self.state["handled_setups"]:
             log.info("DRY_RUN: setup %s already logged", sid)
             return
+        gate = learn.decide(ROOT, self.cfg, getattr(st, "features", None) or {})
+        if not gate["allowed"]:
+            log.info("LEARN skip %s (score=%s): %s", sid, gate.get("score"), gate["reason"])
+            self._learn_skip = (sid, gate)
+            self.state["handled_setups"].append(sid)
+            return
+        self._learn_skip = None
         if any(t.get("mode") == self.mode and t["status"] in ("pending", "open") for t in self.trades):
             log.info("DRY_RUN: paper order/position already active - skip %s", sid)
             return
@@ -496,6 +527,13 @@ class Bot:
                 return
         if st is None or want in self.state["handled_setups"]:
             return
+        gate = learn.decide(ROOT, self.cfg, getattr(st, "features", None) or {})
+        if not gate["allowed"]:
+            log.info("LEARN skip %s (score=%s): %s", want, gate.get("score"), gate["reason"])
+            self._learn_skip = (want, gate)
+            self.state["handled_setups"].append(want)
+            return
+        self._learn_skip = None
         if not self.guards_ok():
             return
         price = self.last_price(close)

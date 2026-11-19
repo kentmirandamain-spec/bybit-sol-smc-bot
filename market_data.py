@@ -96,6 +96,29 @@ def okx_klines(symbol: str, interval_min: int, limit: int) -> pd.DataFrame:
     return okx_klines_range(symbol, interval_min, start, end).tail(limit).reset_index(drop=True)
 
 
+def bybit_funding_history(symbol: str, start_ms: int, end_ms: int, category: str = "linear"):
+    """Public funding rates as (timestamp_ms, rate) oldest first. Empty if Bybit is unreachable."""
+    out = []
+    end = end_ms
+    while end > start_ms and len(out) < 2000:
+        r = requests.get("https://api.bybit.com/v5/market/funding/history", timeout=15, params=dict(
+            category=category, symbol=symbol, startTime=start_ms, endTime=end, limit=200))
+        r.raise_for_status()
+        lst = (r.json().get("result") or {}).get("list") or []
+        if not lst:
+            break
+        for item in lst:
+            ts = int(item.get("fundingRateTimestamp") or 0)
+            if ts:
+                out.append((ts, float(item.get("fundingRate") or 0)))
+        oldest = min(int(item.get("fundingRateTimestamp") or end) for item in lst)
+        if oldest >= end or len(lst) < 200:
+            break
+        end = oldest - 1
+    uniq = {ts: rate for ts, rate in out}
+    return sorted(uniq.items())
+
+
 def okx_last_price(symbol: str) -> float:
     r = requests.get("https://www.okx.com/api/v5/market/ticker", params={"instId": okx_inst(symbol)}, timeout=10)
     r.raise_for_status()

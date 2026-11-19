@@ -59,3 +59,19 @@ logging:
   file: logs/bot.log
   level: INFO
 state_file: state/bot_state.json
+
+# LEARNING -----------------------------------------------------------------
+# Off until you apply a proposal from the dashboard. The score gate also stays
+# off until the journal has min_trades closed trades AND a walk-forward study
+# shows the cutoff helps on held-out weeks. Never auto-applies unless this
+# config is dry_run and auto_apply_dry_run is true.
+learning:
+  enabled: false
+  min_trades: 100
+  min_score: 0
+  min_bucket: 30
+  min_oos_trades: 20
+  oos_weeks: 4
+  max_filters: 3
+  l2: 1.0
+  auto_apply_dry_run: false

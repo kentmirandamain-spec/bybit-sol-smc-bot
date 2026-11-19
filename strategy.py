@@ -38,6 +38,10 @@ class Setup:
     fill_idx: Optional[int] = None
     exit_idx: Optional[int] = None
     exit_price: Optional[float] = None
+    meta: Optional[dict] = None          # signal-time facts for the learning journal
+    features: Optional[dict] = None
+    mfe_r: Optional[float] = None
+    mae_r: Optional[float] = None
 
     @property
     def side(self) -> str:
@@ -199,8 +203,16 @@ def run_strategy(ltf: pd.DataFrame, htf: pd.DataFrame, cfg: dict,
             st = Setup(created_idx=t, created_ts=int(ts[t]), direction=d, entry=entry, stop=stop, tp=tp,
                        expiry_idx=t + s["entry_expiry_bars"],
                        reason=f"{'bull' if d > 0 else 'bear'} sweep@{sw.level:.3f} + {br.kind} "
-                              f"(HTF bias {bias[t]:+d}), zone {zone.bottom:.3f}-{zone.top:.3f}")
+                              f"(HTF bias {bias[t]:+d}), zone {zone.bottom:.3f}-{zone.top:.3f}",
+                       meta={
+                           "sweep_level": float(sw.level), "sweep_extreme": float(sw.extreme),
+                           "ob_top": float(ob.top), "ob_bottom": float(ob.bottom),
+                           "fvg_top": None if fvg is None else float(fvg.top),
+                           "fvg_bottom": None if fvg is None else float(fvg.bottom),
+                       })
             setups.append(st)
             active = st
             break
+    import learn
+    learn.attach(setups, ltf, htf, cfg)
     return setups

@@ -31,6 +31,7 @@ from urllib.parse import urlparse, parse_qs
 import yaml
 from dotenv import load_dotenv
 
+import learn
 import updater
 
 ROOT = Path(__file__).resolve().parent
@@ -384,6 +385,21 @@ def _run_update(jid: str) -> None:
     _finish_update_job(jid, result)
 
 
+def _run_learn(jid: str, days: int, source: str) -> None:
+    def progress(msg: str) -> None:
+        JOBS[jid]["output"] = msg
+    try:
+        text = learn.run_study(ROOT, load_cfg(), days=days, source=source, on_progress=progress)
+    except Exception as e:
+        JOBS[jid].update(status="error", output=learn_redact(str(e)), message="Learning study failed")
+        return
+    JOBS[jid].update(status="done", output=text, message="Learning study finished")
+
+
+def learn_redact(text: str) -> str:
+    return text[-4000:]
+
+
 def _run_rollback(jid: str, backup: str | None) -> None:
     def progress(msg: str) -> None:
         JOBS[jid]["output"] = msg
@@ -514,6 +530,8 @@ class Handler(BaseHTTPRequestHandler):
             jid = parse_qs(urlparse(self.path).query).get("id", [""])[0]
             j = JOBS.get(jid)
             return self._json(j if j else {"error": "unknown job"}, 200 if j else 404)
+        if path == "/api/learning":
+            return self._json(learn.dashboard_view(ROOT, load_cfg()))
         if path == "/api/about":
             meta = updater.read_installed(ROOT)
             commit = meta.get("commit") if isinstance(meta.get("commit"), str) else None
@@ -602,6 +620,30 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("An update or rollback is already running")
                 jid = run_custom_job("update", _run_update)
                 return self._json({"ok": True, "job": jid, "message": "Update started"})
+            if path == "/api/learning/rebuild":
+                if data.get("confirm") is not True:
+                    raise ValueError("Rebuilding the journal needs confirm=true")
+                days = int(data.get("days", 90))
+                if not 30 <= days <= 365:
+                    raise ValueError("days must be 30-365")
+                source = data.get("source", "bybit")
+                if source not in ("bybit", "okx"):
+                    raise ValueError("source must be bybit or okx")
+                if _update_busy() or any(v.get("status") == "running" and v.get("kind") == "learn" for v in JOBS.values()):
+                    raise ValueError("A study or update is already running")
+                jid = run_custom_job("learn", lambda job_id, d=days, src=source: _run_learn(job_id, d, src))
+                return self._json({"ok": True, "job": jid, "message": f"Learning study started ({days} days)"})
+            if path == "/api/learning/apply":
+                if data.get("confirm") is not True:
+                    raise ValueError("Applying a learning proposal needs confirm=true")
+                proposal = learn.apply_proposal(ROOT, CONFIG)
+                return self._json({"ok": True, "message": "Proposal applied. Restart the bot so it uses the new rules.",
+                                   "proposal": {k: proposal.get(k) for k in ("status", "why", "backup", "min_score")}})
+            if path == "/api/learning/reject":
+                if data.get("confirm") is not True:
+                    raise ValueError("Rejecting a proposal needs confirm=true")
+                learn.reject_proposal(ROOT)
+                return self._json({"ok": True, "message": "Proposal rejected. Config was not changed."})
             if path == "/api/update/rollback":
                 if data.get("confirm") is not True:
                     raise ValueError("Rollback needs confirm=true")
