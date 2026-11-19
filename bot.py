@@ -127,6 +127,7 @@ class Bot:
     def __init__(self, cfg: dict):
         self.cfg = cfg
         self.symbol = cfg["symbol"]
+        self.rules_by = {}
         self.cat = cfg["category"]
         self.dry = bool(cfg["dry_run"])
         self.testnet = bool(cfg["testnet"])
@@ -389,7 +390,17 @@ class Bot:
         except Exception:
             log.debug("alert failed", exc_info=True)
 
+    def symbol_list(self) -> list[str]:
+        return trade_manage.parse_symbols(self.cfg.get("symbols", self.symbol), self.symbol)
+
+    def _open_count(self) -> int:
+        return sum(1 for t in self.trades if t.get("mode") == self.mode and t.get("status") in ("pending", "open"))
+
     def guards_ok(self) -> bool:
+        cap = int(self.cfg.get("max_concurrent_positions") or 2)
+        if self._open_count() >= cap:
+            log.info("Max concurrent positions (%d) reached", cap)
+            return False
         if self.state.get("paused"):
             log.info("Entries PAUSED (resume from the dashboard) - not opening new trades")
             return False
@@ -907,7 +918,19 @@ class Bot:
             if (once or iterations or due or want_eval) and now >= backoff_until:
                 last_check = now
                 try:
-                    self.evaluate()
+                    self.rules_by = getattr(self, "rules_by", {})
+                    for sym in self.symbol_list():
+                        self.symbol = sym
+                        if sym not in self.rules_by:
+                            try:
+                                self.load_instrument()
+                                self.rules_by[sym] = self.rules
+                            except Exception as exc:
+                                log.warning("Skipping %s (%s)", sym, exc)
+                                continue
+                        else:
+                            self.rules = self.rules_by[sym]
+                        self.evaluate()
                     backoff = 5
                     self.status["last_error"] = None
                 except (FailedRequestError, InvalidRequestError) as e:

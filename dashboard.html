@@ -227,7 +227,7 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
         <div class="grid ov">
           <div class="stack" style="min-width:0">
           <div class="card">
-            <h3 class="charthead"><span>SOLUSDT</span><span class="num" id="c-price" style="color:var(--txt);font-size:15px;letter-spacing:0"></span><span id="c-chg" class="num" style="letter-spacing:0"></span><span class="sp"></span>
+            <h3 class="charthead"><span>SOLUSDT</span><select id="symPick" style="width:auto"><option>SOLUSDT</option></select><span class="num" id="c-price" style="color:var(--txt);font-size:15px;letter-spacing:0"></span><span id="c-chg" class="num" style="letter-spacing:0"></span><span class="sp"></span>
               <span class="seg" id="chartmode"><button type="button" data-m="tv" class="on">TradingView</button><button type="button" data-m="bot">Bot chart (with trade levels)</button></span>
               <span class="seg" id="zoom"><button data-n="60">60</button><button data-n="120" class="on">120</button><button data-n="200">200</button><button data-n="300">All</button></span></h3>
             <div class="levels" id="levels"><div class="empty">No pending order or open position.</div></div>
@@ -330,6 +330,11 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
               <label class="f">Minutes before and after<input name="news_pause_minutes" type="number" step="5" min="0" max="240"></label>
             </div><div class="warnbox">Turning dry run off on mainnet means real money. You'll be asked to type <b>GO LIVE</b>.</div>
             <div class="note" id="newsbox">News blackouts load when this page opens.</div>
+            <label class="f">Phone on the same Wi-Fi<select name="dashboard_lan"><option value="false">Off — this PC only</option><option value="true">On — requires a dashboard password</option></select></label>
+            <label class="f">Start the bot when the dashboard opens<select name="autostart_bot"><option value="false">No</option><option value="true">Yes, in the mode saved here</option></select></label>
+            <label class="f">Symbols<input name="symbols" placeholder="SOLUSDT"><small>Comma-separated. BTCUSDT and ETHUSDT are supported. Default is SOL only. 5 USDT risk each.</small></label>
+            <label class="f">Max open positions<input name="max_concurrent_positions" type="number" min="1" max="5" step="1"></label>
+            <div class="note" id="lanbox"></div>
             <div class="toolbar"><button class="btn" type="button" onclick="testTelegram()">Send test Telegram message</button></div>
             <div class="note" id="envover"></div></div>
           </div>
@@ -500,7 +505,7 @@ function go(p){if(!PAGES[p])p='overview';page=p;
   document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
   $('ptitle').textContent=PAGES[p];if(location.hash!=='#'+p)history.replaceState(null,'','#'+p);
   if(p==='overview'){if(chartMode==='bot')requestAnimationFrame(drawChart);else mountTv()}
-  if(p==='logs')refreshLog();if(p==='learning')loadLearning();if(p==='settings')loadNews()}
+  if(p==='logs')refreshLog();if(p==='learning')loadLearning();if(p==='settings'){loadNews();loadLan()}}
 document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.onclick=()=>go(a.dataset.p));
 window.addEventListener('hashchange',()=>go(location.hash.slice(1)));
 
@@ -536,6 +541,9 @@ function parseBacktest(j){const o=j.output||'';const m=o.match(/\[net of est\. f
   $('b-dd').innerHTML=`<span class="down">${num(m[7])} R</span>`;
   if(p){$('b-pnl').innerHTML=`<span class="${cls(p[2])}">${sgnNum(p[2])}</span>`;$('b-ls').textContent=`${p[3]} longs · ${p[4]} shorts @ ${p[1]} USDT risk`}}
 
+function loadLan(){api('/api/lan').then(j=>{
+  $('lanbox').textContent=j.enabled?(j.urls.length?('Phone: '+j.urls.join('  ')):'LAN is on. Restart the dashboard if the address is missing.'):'LAN is off. A password in .env is required before it can be turned on. Restart the dashboard after saving.';
+}).catch(()=>{})}
 function testTelegram(){modal('Send a Telegram test?','Uses TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID from .env. Other chats are ignored.','','Send',async ok=>{
   if(!ok)return;try{const j=await api('/api/telegram/test',{confirm:true});toast(j.message)}catch(e){toast(e.message,true)}})}
 function loadNews(){api('/api/news').then(j=>{
@@ -729,7 +737,8 @@ function mountTv(){const iv=tvInterval();
   try{if(tvWidget&&tvWidget.remove)tvWidget.remove()}catch(e){}
   tvWidget=null;box.innerHTML='';
   loadTvScript().then(()=>{if(gen!==tvGen||chartMode!=='tv')return;tvIntervalOn=iv;
-    tvWidget=new TradingView.widget({autosize:true,symbol:'BYBIT:SOLUSDT.P',interval:iv,timezone:'Asia/Manila',theme:'dark',style:'1',locale:'en',toolbar_bg:'#0f141c',backgroundColor:'#0f141c',gridColor:'rgba(230,237,245,0.06)',hide_side_toolbar:false,allow_symbol_change:false,save_image:false,enable_publishing:false,withdateranges:false,container_id:'tvbox'});
+    const sym=(document.getElementById('symPick')&&document.getElementById('symPick').value)||'SOLUSDT';
+    tvWidget=new TradingView.widget({autosize:true,symbol:'BYBIT:'+sym+'.P',interval:iv,timezone:'Asia/Manila',theme:'dark',style:'1',locale:'en',toolbar_bg:'#0f141c',backgroundColor:'#0f141c',gridColor:'rgba(230,237,245,0.06)',hide_side_toolbar:false,allow_symbol_change:false,save_image:false,enable_publishing:false,withdateranges:false,container_id:'tvbox'});
     $('tvstatus').style.display='none';$('c-src').textContent=`TradingView · BYBIT:SOLUSDT.P · ${iv} · Asia/Manila`}).catch(e=>{
     if(gen!==tvGen)return;
     $('tvstatus').style.display='block';$('tvstatus').textContent=e.message+'. Showing the bot chart instead.';

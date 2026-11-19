@@ -71,12 +71,26 @@ class DashboardUpdateTests(unittest.TestCase):
         self.assertEqual(status, 200)
         view = json.loads(body)
         self.assertIn("summary", view)
+        dashboard.LAN_ON = True
+        dashboard.lan_ips = lambda: {"10.1.2.3"}
+        import http.client as hc
+        conn = hc.HTTPConnection("127.0.0.1", self.server.server_address[1], timeout=5)
+        conn.request("GET", "/api/lan", headers={"Host": "10.1.2.3"})
+        allowed = conn.getresponse()
+        allowed.read()
+        conn.request("GET", "/api/lan", headers={"Host": "evil.example"})
+        blocked = conn.getresponse()
+        blocked.read()
+        conn.close()
+        dashboard.LAN_ON = False
+        self.assertEqual(allowed.status, 200)
+        self.assertEqual(blocked.status, 403)
         self.assertIn("proposal", view)
         self.assertIn("buckets", view)
         status, body = _request("GET", self.base + "/api/about")
         self.assertEqual(status, 200)
         about = json.loads(body)
-        self.assertEqual(about["version"], "1.0.0")
+        self.assertEqual(about["version"], (ROOT / "VERSION").read_text(encoding="utf-8").strip())
         self.assertIn("blocked", about)
         self.assertIn("backups", about)
 

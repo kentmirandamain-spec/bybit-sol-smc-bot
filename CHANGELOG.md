@@ -1,13 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 - 2026-11-19
 
 - Telegram alerts and commands via the Bot API (long polling, standard library only). Only `TELEGRAM_CHAT_ID` is answered. `/close` needs `/close confirm` within 60 seconds. Settings has a test-message button.
-
-- Drawdown circuit breaker: after N consecutive losses (default 3) the bot takes no new entries for the rest of the UTC day. An optional smaller risk applies during a losing streak and can never exceed 5 USDT or the configured risk.
-
-- Breakeven stop: after a configurable open profit (default off), the stop moves to entry plus fees. Optional ATR or 15m-swing trail after +1.5R. Dry-run, backtest, and live (Bybit `set_trading_stop`) share the rule.
-- Partial take-profit: close a configurable percent (default off) at the first target and leave the rest for the final target. The split is skipped when either piece would be below the exchange minimum. Risk stays capped at 5 USDT.
+- `setup.bat` creates the virtualenv, installs requirements, copies `.env`, and adds a Desktop shortcut. `install_autostart.bat` opens the dashboard at Windows sign-in. The bot starts only when `autostart_bot` is on. Dry run stays dry run.
+- Optional phone access on the same Wi-Fi (`dashboard_lan`). It stays off without `DASHBOARD_PASSWORD`. Login attempts are rate-limited.
+- Breakeven stop and an optional ATR or 15m trail, plus an optional partial take-profit. Defaults are off. On the last 90 days of OKX SOL (36 closed trades) the baseline was 27.8% wins, −0.29R expectancy, 18.6R drawdown. Breakeven at +1R was −0.23R and 12.1R drawdown on the full window, but the last 30 days were worse (−0.18R vs +0.24R). An ATR trail raised the full-window win rate to 38.9% and expectancy to −0.23R; the last 30 days were −0.15R. A 50% partial at +1R was −0.15R with 9.6R drawdown on the full window and about flat on the last 30 days (+0.01R vs +0.24R).
+- High-impact USD news can pause new entries. If the calendar feed is down, the bot logs a warning and keeps trading.
+- After 3 consecutive losses, new entries pause for the rest of the UTC day. A losing streak can cut risk, never above 5 USDT. On that SOL sample the circuit skipped one trade and moved expectancy from −0.29R to −0.26R. The last 30 days were unchanged.
+- `symbols` defaults to SOLUSDT. BTCUSDT and ETHUSDT can be added in Settings. Each trade still risks at most 5 USDT, and at most 2 positions are open by default. A 90-day OKX check, not enabled by default: BTC 28 trades, 28.6% wins, −0.33R, 14.0R drawdown. ETH 33 trades, 39.4% wins, +0.05R, 10.3R drawdown.
+- On startup the bot reloads dry-run state and, when live, flags a Bybit position that is missing a stop or target and cancels stale reduce-only orders. Network errors back off up to five minutes.
+- A weekly note is written to `state/reports/weekly_YYYY-WW.md` on Sunday 20:00 Asia/Manila, and summarized on Telegram when that is configured.
 
 ## 1.1.0 - 2026-11-19
 

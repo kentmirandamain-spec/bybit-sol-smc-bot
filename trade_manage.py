@@ -12,6 +12,16 @@ from datetime import datetime, timezone
 MAX_RISK_USDT = 5.0
 
 
+def parse_symbols(raw, fallback: str = "SOLUSDT") -> list[str]:
+    items = raw if isinstance(raw, list) else str(raw or "").split(",")
+    out = []
+    for item in items:
+        sym = str(item).strip().upper()
+        if sym and sym not in out:
+            out.append(sym)
+    return out or [fallback]
+
+
 def capped_risk(risk_usdt: float, streak: int = 0, streak_risk: float = 0.0) -> float:
     """Configured risk, capped at 5 USDT. A losing streak can only lower it."""
     base = min(MAX_RISK_USDT, max(0.0, float(risk_usdt)))

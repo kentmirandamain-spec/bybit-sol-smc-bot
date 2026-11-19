@@ -53,6 +53,8 @@ NOWIN = (subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP) if W
 load_dotenv(ROOT / ".env")
 PASSWORD = os.getenv("DASHBOARD_PASSWORD", "").strip()
 SESSIONS: set[str] = set()
+LAN_ON = False
+LOGIN_FAILS: dict[str, list[float]] = {}
 LOCK = threading.Lock()
 BOT_PROC: subprocess.Popen | None = None
 JOBS: dict[str, dict] = {}
@@ -171,6 +173,10 @@ FIELDS = {   # key: (section, type, validator-description)
     "tp_mode": ("strategy", str, ["rr", "liquidity"]),
     "htf_interval": (None, int, INTERVALS),
     "ltf_interval": (None, int, INTERVALS),
+    "dashboard_lan": (None, bool, None),
+    "autostart_bot": (None, bool, None),
+    "symbols": (None, str, None),
+    "max_concurrent_positions": (None, int, (1, 5)),
     "news_filter": (None, bool, None),
     "news_pause_minutes": (None, int, (0, 240)),
     "dry_run": (None, bool, None),
@@ -236,6 +242,8 @@ def save_settings(data: dict) -> dict:
     goes_live = (merged["dry_run"] is False and merged["testnet"] is False)
     if goes_live and not was_live and str(data.get("confirm", "")).strip() != "GO LIVE":
         raise ValueError("Switching to LIVE trading needs the typed confirmation: GO LIVE")
+    if new.get("dashboard_lan") is True and not PASSWORD:
+        raise ValueError("LAN access needs DASHBOARD_PASSWORD in .env. It was not enabled.")
 
     text = CONFIG.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
@@ -482,8 +490,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _host_ok(self):
-        host = (self.headers.get("Host") or "").split(":")[0]
-        return host in ("127.0.0.1", "localhost")
+        host = (self.headers.get("Host") or "").split(":")[0].strip("[]")
+        if host in ("127.0.0.1", "localhost", "::1"):
+            return True
+        return bool(LAN_ON and host in lan_ips())
 
     def _authed(self):
         if not PASSWORD:
@@ -543,6 +553,9 @@ class Handler(BaseHTTPRequestHandler):
             jid = parse_qs(urlparse(self.path).query).get("id", [""])[0]
             j = JOBS.get(jid)
             return self._json(j if j else {"error": "unknown job"}, 200 if j else 404)
+        if path == "/api/lan":
+            urls = [f"http://{ip}:{DASH_PORT}" for ip in sorted(lan_ips())] if LAN_ON else []
+            return self._json({"enabled": LAN_ON, "urls": urls, "password_set": bool(PASSWORD)})
         if path == "/api/news":
             return self._json(news.upcoming(ROOT, load_cfg()))
         if path == "/api/learning":
@@ -568,6 +581,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "bad host"}, 403)
         path = urlparse(self.path).path
         if path == "/login":
+            ip = self.client_address[0]
+            now = time.time()
+            recent = [t for t in LOGIN_FAILS.get(ip, []) if now - t < 600]
+            if len(recent) >= 8:
+                return self._json({"error": "too many login attempts"}, 429)
             data = self._body()
             if PASSWORD and hmac.compare_digest(str(data.get("password", "")).encode(), PASSWORD.encode()):
                 tok = secrets.token_urlsafe(24)
@@ -577,6 +595,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Location", "/")
                 self.end_headers()
                 return
+            LOGIN_FAILS.setdefault(ip, []).append(time.time())
             return self._html(LOGIN_HTML.replace("<!--ERR-->", "<p class=err>Wrong password</p>"), 401)
         # CSRF guard: custom header can't be sent cross-site without a CORS preflight we never allow
         if self.headers.get("X-Dashboard") != "1":
@@ -714,6 +733,26 @@ button{background:#2563eb;border:0;font-weight:600;cursor:pointer}.err{color:#f8
 <form method=post action=/login><svg width="36" height="36" viewBox="0 0 512 509.641" aria-hidden="true" style="color:#f4f7fb"><path fill="currentColor" d="M213.235 306.019l178.976-180.002v.169l51.695-51.763c-.924 1.32-1.86 2.605-2.785 3.89-39.281 54.164-58.46 80.649-43.07 146.922l-.09-.101c10.61 45.11-.744 95.137-37.398 131.836-46.216 46.306-120.167 56.611-181.063 14.928l42.462-19.675c38.863 15.278 81.392 8.57 111.947-22.03 30.566-30.6 37.432-75.159 22.065-112.252-2.92-7.025-11.67-8.795-17.792-4.263l-124.947 92.341zm-25.786 22.437l-.033.034L68.094 435.217c7.565-10.429 16.957-20.294 26.327-30.149 26.428-27.803 52.653-55.359 36.654-94.302-21.422-52.112-8.952-113.177 30.724-152.898 41.243-41.254 101.98-51.661 152.706-30.758 11.23 4.172 21.016 10.114 28.638 15.639l-42.359 19.584c-39.44-16.563-84.629-5.299-112.207 22.313-37.298 37.308-44.84 102.003-1.128 143.81z"/></svg><h3>Grok Bot · SOL Futures</h3><!--ERR--><input type=password name=password placeholder="Dashboard password" autofocus>
 <button>Log in</button></form></body></html>"""
 
+def lan_ips() -> set[str]:
+    import socket
+    found = set()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            ip = info[4][0]
+            if "." in ip and not ip.startswith("127."):
+                found.add(ip)
+    except OSError:
+        pass
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("8.8.8.8", 80))
+        found.add(sock.getsockname()[0])
+        sock.close()
+    except OSError:
+        pass
+    return found
+
+
 def page_html() -> str:
     f = ROOT / "dashboard.html"
     html = f.read_text(encoding="utf-8") if f.exists() else "<h1>dashboard.html missing</h1>"
@@ -727,10 +766,20 @@ def main():
     global SERVER, DASH_PORT
     args = ap.parse_args()
     DASH_PORT = args.port
+    global LAN_ON
+    cfg = load_cfg()
     STATE.mkdir(exist_ok=True)
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    if cfg.get("dashboard_lan") and not PASSWORD:
+        print("dashboard_lan is set, but DASHBOARD_PASSWORD is empty. Staying on 127.0.0.1.")
+    LAN_ON = bool(cfg.get("dashboard_lan")) and bool(PASSWORD)
+    bind = "0.0.0.0" if LAN_ON else "127.0.0.1"
+    srv = ThreadingHTTPServer((bind, args.port), Handler)
     SERVER = srv
     url = f"http://127.0.0.1:{args.port}"
+    if LAN_ON:
+        print("LAN access is on. Phone URL examples:")
+        for ip in sorted(lan_ips()):
+            print(f"  http://{ip}:{args.port}")
     print(f"Grok Bot dashboard running at {url}")
     print("Ctrl+C or closing this window stops the DASHBOARD only. A started bot keeps running in the background;")
     print("stop it with the Stop button (reopen the dashboard any time - it reconnects automatically).")
@@ -738,6 +787,11 @@ def main():
         print("Tip: set DASHBOARD_PASSWORD=... in .env to require a password.")
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+    if cfg.get("autostart_bot"):
+        try:
+            print(start_bot(cfg.get("market_data_source") or "bybit"))
+        except Exception as exc:
+            print(f"Autostart did not start the bot: {exc}")
 
     def _catch_up_learning():
         try:

@@ -36,6 +36,12 @@ news_filter: false             # pause new entries around high-impact USD events
 news_pause_minutes: 30
 news_blackouts: ""             # manual UTC times, comma-separated: 2026-11-19 13:30
 
+# DASHBOARD / PC -----------------------------------------------------------
+dashboard_lan: false           # true = phones on this Wi-Fi. Requires DASHBOARD_PASSWORD.
+autostart_bot: false           # true = the dashboard starts the bot when it opens
+symbols: SOLUSDT               # comma-separated. BTCUSDT and ETHUSDT stay off until you add them.
+max_concurrent_positions: 2    # across all symbols. Daily loss limit stays global.
+
 # STRATEGY -----------------------------------------------------------------
 strategy:
   swing_left: 3                # LTF fractal swing lookback (bars each side)
