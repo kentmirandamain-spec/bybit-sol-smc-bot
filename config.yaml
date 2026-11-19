@@ -13,6 +13,7 @@ category: linear
 
 htf_interval: 60       # higher timeframe (minutes) for bias / structure
 ltf_interval: 15       # lower timeframe (minutes) for entries
+adaptive_mode: false   # true = pick 1h/15m, 1h/5m, or 4h/1h from the closed 1h regime, or stand aside. Default off.
 ltf_bars: 1000         # closed LTF candles loaded each evaluation
 htf_bars: 500          # closed HTF candles loaded each evaluation
 poll_seconds: 20       # how often the loop wakes up

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Opt-in `adaptive_mode` (default **false**). When off, entries stay 1h bias and 15m, and nothing in the order path changes. When on, a pre-registered 1h regime either stands aside or selects 1h/15m, 1h/5m, or 4h/1h. Risk stays 5 USDT, the daily loss cap stays 15 USDT, and dry run stays the default. The comparison is in `reports/adaptive_backtest.md`. The mode is not turned on by this change.
+
 ## 1.2.0 - 2026-11-19
 
 - Telegram alerts and commands via the Bot API (long polling, standard library only). Only `TELEGRAM_CHAT_ID` is answered. `/close` needs `/close confirm` within 60 seconds. Settings has a test-message button.
