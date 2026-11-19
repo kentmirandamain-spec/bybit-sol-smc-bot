@@ -24,12 +24,19 @@ SL and TP are attached to every order (exchange-side). One position/order at a t
 Optional daily loss limit (`max_daily_loss_usdt`) and max trades per day. Leverage (default 5x)
 and isolated margin are set via the API on start.
 
+`strategy_variant` stays `default` (1h bias, 15m entry). Setting it to `fvg_mtf` is an opt-in
+experiment: a tap of an unmitigated 1h or 4h fair-value gap, then a 5m change of character,
+limit at the last opposite 5m candle, stop just beyond that candle, target at the nearest
+unmitigated 1h/4h swing or opposing gap. Risk stays 5 USDT. Leave it on `default` unless
+`reports/fvg_mtf_backtest.md` says the out-of-sample result beat the fixed 1h/15m baseline.
+
 ## Files
 | File | Purpose |
 |---|---|
 | `bot.py` | Live/dry-run bot loop (pybit v5) |
 | `smc.py` | SMC indicators: swings, BOS/CHoCH, order blocks, FVGs, liquidity sweeps |
 | `strategy.py` | Entry model (shared by bot and backtest) |
+| `fvg_mtf.py` | Opt-in 1h/4h gap model (`strategy_variant: default`) |
 | `risk.py` | Fixed-USDT position sizing + tick/step rounding |
 | `market_data.py` | Kline downloads (Bybit; OKX public fallback for testing) |
 | `backtest.py` | Backtest on public klines (no keys) |

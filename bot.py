@@ -32,6 +32,7 @@ from dotenv import load_dotenv
 from pybit.exceptions import FailedRequestError, InvalidRequestError
 from pybit.unified_trading import HTTP
 
+import fvg_mtf
 import learn
 import market_data
 import news
@@ -567,8 +568,65 @@ class Bot:
         self.rc = new["risk"]
         log.info("Dry run reloaded config.yaml for the next bar")
 
+    def _evaluate_fvg_mtf(self):
+        """5m CHoCH after a 1h/4h gap tap. Only called when strategy_variant is fvg_mtf."""
+        limit = 20 * 24 * 12
+        c = self.cfg
+        if c.get("market_data_source") == "okx":
+            m5 = market_data.okx_klines(self.symbol, 5, limit)
+        else:
+            m5 = market_data.bybit_klines(self.http, self.symbol, 5, limit, self.cat)
+        if len(m5) < 200:
+            log.warning("Not enough 5m candles for fvg_mtf (%d)", len(m5))
+            return
+        h1 = fvg_mtf.resample(m5, 60)
+        h4 = fvg_mtf.resample(m5, 240)
+        result = fvg_mtf.replay(m5, h1, h4, c)
+        setups = result.setups
+        cfg_tf = dict(c)
+        cfg_tf["ltf_interval"] = 5
+        cfg_tf["htf_interval"] = 60
+        try:
+            learn.attach(setups, m5, h1 if len(h1) else m5, cfg_tf)
+        except Exception as exc:
+            log.debug("fvg_mtf features skipped: %s", exc)
+        pending = setups[-1] if setups and setups[-1].status == "pending" else None
+        last_ts = int(m5["ts"].iloc[-1])
+        close = float(m5["close"].iloc[-1])
+        bar_time = datetime.fromtimestamp(last_ts / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        bias = 0
+        if len(h1) >= 20:
+            trend = smc.analyze(h1, c["strategy"]["htf_swing_left"], c["strategy"]["htf_swing_right"],
+                                c["strategy"]["sweep_lookback"]).trend
+            bias = int(trend[-1])
+        log.info("fvg_mtf %s close=%.3f | pending=%s", bar_time, close,
+                 f"{pending.side} @ {pending.entry} SL {pending.stop} TP {pending.tp}" if pending else "none")
+        self.last_eval_ts = last_ts
+        try:
+            tail_df = m5.tail(300)
+            write_json_atomic(CANDLES_FILE, {
+                "written": time.time(), "symbol": self.symbol, "interval": 5,
+                "source": c.get("market_data_source", "bybit"),
+                "candles": [[int(r.ts), r.open, r.high, r.low, r.close, r.volume] for r in tail_df.itertuples()]})
+        except Exception as exc:
+            log.debug("could not write candles: %s", exc)
+        self.status.update(htf_bias={1: "BULLISH", -1: "BEARISH"}.get(bias, "NEUTRAL"), last_bar=bar_time,
+                           last_eval_at=now_iso(), price=self.last_price(close) or close)
+        self._learn_skip = None
+        if self.dry:
+            self._sync_dry_journal(setups)
+            self._dry_handle(pending, close)
+        else:
+            self._live_handle(pending, close)
+        self._sync_learn(setups)
+        self._save_state()
+        self._refresh_views(self.status["price"])
+
     def evaluate(self):
         self._reload_dry_config()
+        if str(self.cfg.get("strategy_variant") or "default") == "fvg_mtf":
+            self._evaluate_fvg_mtf()
+            return
         ltf, htf = self.fetch()
         if len(ltf) < 200 or len(htf) < 50:
             log.warning("Not enough candles (ltf=%d htf=%d)", len(ltf), len(htf))
@@ -904,7 +962,8 @@ class Bot:
         self.prepare_account()
         self._recover()
         self._start_telegram()
-        ltf_ms = int(self.cfg["ltf_interval"]) * 60_000
+        step_min = 5 if str(self.cfg.get("strategy_variant") or "default") == "fvg_mtf" else int(self.cfg["ltf_interval"])
+        ltf_ms = step_min * 60_000
         tick = 2.0                              # loop granularity (commands / heartbeat)
         poll = float(self.cfg["poll_seconds"])
         n, backoff_until, backoff, last_check, last_price = 0, 0.0, 5, 0.0, 0.0
