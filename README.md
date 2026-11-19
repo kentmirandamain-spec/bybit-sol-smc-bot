@@ -79,6 +79,18 @@ Notes:
 - Files the dashboard reads: `state/status.json` (heartbeat), `state/trades.json` (trade journal),
   `logs/bot.log`. Commands are passed as small files in `state/commands/`.
 
+## Install on Windows
+
+Double-click `setup.bat`. It looks for Python 3.11 through 3.14, creates `.venv`, installs `requirements.txt`, copies `.env.example` to `.env` when needed, and puts a **Grok Bot** shortcut on the Desktop. Say yes if you also want the dashboard to open when you sign in (`install_autostart.bat` / `uninstall_autostart.bat`). Dry run stays on. The bot starts with the dashboard only when **Start the bot when the dashboard opens** is enabled in Settings.
+
+### Smart App Control
+
+The dashboard and the updater add no compiled packages of their own. The bot does need `numpy` and `pandas`. If Windows Smart App Control blocks one of those DLLs, the pip error will name the file. Windows Security → App & browser control → Smart App Control is the switch Microsoft documents. Turning it off is a system setting, not something this bot can do. A VPS is the other option in the dashboard section above.
+
+### Phone on the same Wi-Fi
+
+Settings → **Phone on the same Wi-Fi** stays off until `.env` contains `DASHBOARD_PASSWORD`. After you save and restart the dashboard, it listens on this PC's LAN address and prints `http://<that-address>:8080`. Login attempts are limited. The page still requires the `X-Dashboard` header on commands. Do not forward the port to the internet.
+
 ## Telegram
 
 1. In Telegram, open `@BotFather` and create a bot with `/newbot`. Copy the token.
