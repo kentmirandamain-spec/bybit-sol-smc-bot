@@ -42,10 +42,13 @@ and isolated margin are set via the API on start.
 | `start_dashboard.bat` | Windows double-click launcher |
 
 ## 🖥️ Easy mode: the Grok Bot dashboard (Windows, beginners start here)
-A local trading-terminal style web page (Overview · Trades · Settings · Backtest · Logs) with a live
-SOLUSDT candlestick chart showing your entry/SL/TP lines and past trade markers. Watch the bot,
-change settings and send commands. Works offline: no CDNs, everything is inline. Nothing extra to install:
-it uses only Python's built-in web server plus the bot's normal requirements.
+A local trading-terminal style web page (Overview · Trades · Settings · Backtest · Logs). The Overview
+chart is a TradingView chart of **BYBIT:SOLUSDT.P** (dark theme, Asia/Manila, interval = the bot's
+entry timeframe). Entry, stop and target are listed next to it, because that free widget cannot draw
+them. **Bot chart (with trade levels)** is the built-in canvas, with those lines and past fills, and
+it is what you see if TradingView does not load. The Grok mark is inlined. Nothing extra to install:
+the page uses Python's built-in web server plus the bot's normal requirements. TradingView is the one
+piece that needs internet (`https://s3.tradingview.com/tv.js`).
 
 1. Install **Python 3.11+** from python.org (tick **"Add python.exe to PATH"**).
 2. Unzip the folder somewhere like `C:\Users\<you>\bybit-sol-smc-bot`.

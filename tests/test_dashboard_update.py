@@ -48,6 +48,23 @@ class DashboardUpdateTests(unittest.TestCase):
         self.assertIn("Check for updates", text)
         self.assertIn("Roll back", text)
         self.assertIn("v" + (ROOT / "VERSION").read_text(encoding="utf-8").strip(), text)
+        self.assertIn("BYBIT:SOLUSDT.P", text)
+        self.assertIn("Asia/Manila", text)
+        self.assertIn("https://s3.tradingview.com/tv.js", text)
+        self.assertIn("Bot chart (with trade levels)", text)
+        self.assertIn("M213.235 306.019", text)
+        self.assertIn("Grok Bot", text)
+        self.assertNotIn("upload.wikimedia.org", text)
+        self.assertNotIn("M22 11.5A8", text)
+        import http.client
+        port = self.server.server_address[1]
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", "/", headers={"Host": "127.0.0.1"})
+        resp = conn.getresponse()
+        headers = {k.lower(): v for k, v in resp.getheaders()}
+        resp.read()
+        conn.close()
+        self.assertNotIn("content-security-policy", headers)
         status, body = _request("GET", self.base + "/api/about")
         self.assertEqual(status, 200)
         about = json.loads(body)

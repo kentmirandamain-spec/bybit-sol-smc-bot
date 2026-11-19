@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>Grok Bot · SOL Futures</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310b981'/%3E%3Cpath d='M22 11.5A8 8 0 1 0 24 17h-7' fill='none' stroke='%23051b14' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 509.641'%3E%3Crect width='512' height='509.641' rx='96' fill='%230b0f15'/%3E%3Cpath fill='%23f4f7fb' d='M213.235 306.019l178.976-180.002v.169l51.695-51.763c-.924 1.32-1.86 2.605-2.785 3.89-39.281 54.164-58.46 80.649-43.07 146.922l-.09-.101c10.61 45.11-.744 95.137-37.398 131.836-46.216 46.306-120.167 56.611-181.063 14.928l42.462-19.675c38.863 15.278 81.392 8.57 111.947-22.03 30.566-30.6 37.432-75.159 22.065-112.252-2.92-7.025-11.67-8.795-17.792-4.263l-124.947 92.341zm-25.786 22.437l-.033.034L68.094 435.217c7.565-10.429 16.957-20.294 26.327-30.149 26.428-27.803 52.653-55.359 36.654-94.302-21.422-52.112-8.952-113.177 30.724-152.898 41.243-41.254 101.98-51.661 152.706-30.758 11.23 4.172 21.016 10.114 28.638 15.639l-42.359 19.584c-39.44-16.563-84.629-5.299-112.207 22.313-37.298 37.308-44.84 102.003-1.128 143.81z'/%3E%3C/svg%3E">
 <style>
 :root{
   --bg:#07090d;--bg2:#0b0f15;--panel:#0f141c;--panel2:#131a24;--line:#1c2532;--line2:#263243;
@@ -23,6 +23,8 @@ a{color:inherit}
 aside{background:var(--bg2);border-right:1px solid var(--line);padding:18px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:18px}
 .brand{display:flex;align-items:center;gap:11px;padding:2px 6px 14px;border-bottom:1px solid var(--line)}
 .brand .t1{font-weight:750;font-size:15.5px;letter-spacing:.01em}.brand .t2{font-size:11.5px;color:var(--mut);letter-spacing:.06em;text-transform:uppercase}
+.mark{color:#f4f7fb;display:block}
+.wordmark{height:15px;width:auto;color:#f4f7fb;display:block;margin-top:4px}
 nav{display:flex;flex-direction:column;gap:3px}
 nav a{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:var(--mut);text-decoration:none;font-weight:560;cursor:pointer;user-select:none}
 nav a svg{width:17px;height:17px;flex:none;opacity:.9}
@@ -97,9 +99,20 @@ label.f small{font-weight:400;color:var(--dim)}
 .errbox{border:1px solid #ea394355;background:#ea394312;color:#ffadb1;border-radius:9px;padding:9px 11px;font-size:12.5px;margin-top:14px;display:none}
 
 /* chart */
+.charthead{flex-wrap:wrap;row-gap:8px}
 .chartwrap{position:relative;height:430px;margin:0 -4px}
 #chart{width:100%;height:100%;display:block;cursor:crosshair}
+#tvbox{position:absolute;inset:0}
+.chartwrap.mode-tv #chart,.chartwrap.mode-tv .ohlc{display:none}
+.chartwrap.mode-bot #tvbox{display:none}
+body[data-chart="tv"] #zoom,body[data-chart="tv"] #legend{display:none}
+body[data-chart="bot"] #tvnote{display:none}
 .ohlc{position:absolute;left:10px;top:6px;font:12px var(--mono);color:var(--mut);pointer-events:none;background:#0f141ccc;padding:3px 7px;border-radius:6px}
+.levels{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
+.lvrow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px}
+.lvrow b{font-weight:650}
+.desk-logo{height:18px;width:auto;color:#f4f7fb;flex:none}
+@media (max-width:860px){.desk-logo{display:none}}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--mut);margin-top:8px}
 .legend span::before{content:"";display:inline-block;width:14px;height:2px;margin-right:6px;vertical-align:middle;background:var(--c)}
 
@@ -149,11 +162,16 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
 <body>
 <svg width="0" height="0" style="position:absolute">
   <defs>
-    <linearGradient id="gb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#0e9f6e"/></linearGradient>
-    <symbol id="logo" viewBox="0 0 40 40">
-      <rect x="1" y="1" width="38" height="38" rx="11" fill="url(#gb)"/>
-      <path d="M28.5 14.2A10 10 0 1 0 30 21.5h-9" fill="none" stroke="#04130d" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M24.8 26.6l3.4-3.4 2.6 2.6" fill="none" stroke="#04130d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+    <symbol id="grok" viewBox="0 0 512 509.641">
+      <path fill="currentColor" d="M213.235 306.019l178.976-180.002v.169l51.695-51.763c-.924 1.32-1.86 2.605-2.785 3.89-39.281 54.164-58.46 80.649-43.07 146.922l-.09-.101c10.61 45.11-.744 95.137-37.398 131.836-46.216 46.306-120.167 56.611-181.063 14.928l42.462-19.675c38.863 15.278 81.392 8.57 111.947-22.03 30.566-30.6 37.432-75.159 22.065-112.252-2.92-7.025-11.67-8.795-17.792-4.263l-124.947 92.341zm-25.786 22.437l-.033.034L68.094 435.217c7.565-10.429 16.957-20.294 26.327-30.149 26.428-27.803 52.653-55.359 36.654-94.302-21.422-52.112-8.952-113.177 30.724-152.898 41.243-41.254 101.98-51.661 152.706-30.758 11.23 4.172 21.016 10.114 28.638 15.639l-42.359 19.584c-39.44-16.563-84.629-5.299-112.207 22.313-37.298 37.308-44.84 102.003-1.128 143.81z"/>
+    </symbol>
+    <symbol id="grok-word" viewBox="0 0 88 33">
+      <path fill="currentColor" d="M76.4462 24.7077V8.41584H79.0216V19.1679L84.4685 12.9109H87.5908L82.6908 18.2731L87.6364 24.7077H84.5596L80.5539 19.1788L79.0216 19.1679V24.7077H76.4462Z"/>
+      <path fill="currentColor" d="M68.6362 24.9815C64.8074 24.9815 62.7335 22.2662 62.7335 18.7979C62.7335 15.3068 64.8074 12.6143 68.6362 12.6143C72.4878 12.6143 74.5389 15.3068 74.5389 18.7979C74.5389 22.2662 72.4878 24.9815 68.6362 24.9815ZM65.4228 18.7979C65.4228 21.4904 66.8813 22.8366 68.6362 22.8366C70.4139 22.8366 71.8497 21.4904 71.8497 18.7979C71.8497 16.1054 70.4139 14.7363 68.6362 14.7363C66.8813 14.7363 65.4228 16.1054 65.4228 18.7979Z"/>
+      <path fill="currentColor" d="M55.5659 24.7077V14.782L57.731 12.9109H62.3347V15.1014H58.1413V24.7077H55.5659Z"/>
+      <path fill="currentColor" d="M45.7187 25.009C40.8101 25.009 37.8834 21.4448 37.8834 16.5846C37.8834 11.6788 40.9146 8.02795 45.8145 8.02795C49.6433 8.02795 52.4466 9.99027 53.1075 13.6411H50.1675C49.7345 11.5647 48.0024 10.401 45.8145 10.401C42.282 10.401 40.7322 13.4586 40.7322 16.5846C40.7322 19.7106 42.282 22.7454 45.8145 22.7454C49.1875 22.7454 50.6689 20.3039 50.7828 18.2731H45.7006V15.9105H53.381L53.3684 17.1457C53.3684 21.7359 51.4978 25.009 45.7187 25.009Z"/>
+      <path fill="currentColor" d="M13.2371 21.0407L24.3186 12.8506C24.8619 12.4491 25.6384 12.6057 25.8973 13.2294C27.2597 16.5185 26.651 20.4712 23.9403 23.1851C21.2297 25.8989 17.4581 26.4941 14.0108 25.1386L10.2449 26.8843C15.6463 30.5806 22.2053 29.6665 26.304 25.5601C29.5551 22.3051 30.562 17.8683 29.6205 13.8673L29.629 13.8758C28.2637 7.99809 29.9647 5.64871 33.449 0.844576C33.5314 0.730667 33.6139 0.616757 33.6964 0.5L29.1113 5.09055V5.07631L13.2343 21.0436"/>
+      <path fill="currentColor" d="M10.9503 23.0313C7.07343 19.3235 7.74185 13.5853 11.0498 10.2763C13.4959 7.82722 17.5036 6.82767 21.0021 8.2971L24.7595 6.55998C24.0826 6.07017 23.215 5.54334 22.2195 5.17313C17.7198 3.31926 12.3326 4.24192 8.67479 7.90126C5.15635 11.4239 4.0499 16.8403 5.94992 21.4622C7.36924 24.9165 5.04257 27.3598 2.69884 29.826C1.86829 30.7002 1.0349 31.5745 0.36364 32.5L10.9474 23.0341"/>
     </symbol>
     <symbol id="i-ov" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 19V9m5 10V5m5 14v-7m5 7V8"/></symbol>
     <symbol id="i-tr" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h10"/></symbol>
@@ -167,7 +185,7 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
 
 <div class="app">
   <aside>
-    <div class="brand"><svg width="38" height="38"><use href="#logo"/></svg><div><div class="t1">Grok Bot</div><div class="t2">SOL Futures</div></div></div>
+    <div class="brand"><svg class="mark" width="36" height="36" viewBox="0 0 512 509.641" role="img" aria-label="Grok"><use href="#grok"/></svg><div><div class="t1">Grok Bot</div><div class="t2">SOL Futures</div><svg class="wordmark" viewBox="0 0 88 33" aria-hidden="true"><use href="#grok-word"/></svg></div></div>
     <nav id="nav">
       <a data-p="overview"><svg><use href="#i-ov"/></svg>Overview</a>
       <a data-p="trades"><svg><use href="#i-tr"/></svg>Trades</a>
@@ -180,7 +198,8 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
 
   <main>
     <div class="top">
-      <div class="mobile-brand"><svg width="28" height="28"><use href="#logo"/></svg></div>
+      <div class="mobile-brand"><svg class="mark" width="26" height="26" viewBox="0 0 512 509.641" aria-hidden="true"><use href="#grok"/></svg></div>
+      <svg class="desk-logo" viewBox="0 0 88 33" role="img" aria-label="Grok"><use href="#grok-word"/></svg>
       <h1 id="ptitle">Overview</h1>
       <span class="dim" id="verchip" style="font-size:12px;font-weight:650">v<!--APP_VERSION--></span>
       <span id="mode" class="pill m-dry"><i></i>DRY RUN</span>
@@ -205,10 +224,14 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
         <div class="grid ov">
           <div class="stack" style="min-width:0">
           <div class="card">
-            <h3><span>SOLUSDT</span><span class="num" id="c-price" style="color:var(--txt);font-size:15px;letter-spacing:0"></span><span id="c-chg" class="num" style="letter-spacing:0"></span><span class="sp"></span>
+            <h3 class="charthead"><span>SOLUSDT</span><span class="num" id="c-price" style="color:var(--txt);font-size:15px;letter-spacing:0"></span><span id="c-chg" class="num" style="letter-spacing:0"></span><span class="sp"></span>
+              <span class="seg" id="chartmode"><button type="button" data-m="tv" class="on">TradingView</button><button type="button" data-m="bot">Bot chart (with trade levels)</button></span>
               <span class="seg" id="zoom"><button data-n="60">60</button><button data-n="120" class="on">120</button><button data-n="200">200</button><button data-n="300">All</button></span></h3>
-            <div class="chartwrap"><canvas id="chart"></canvas><div class="ohlc" id="ohlc"></div></div>
-            <div class="legend"><span style="--c:var(--blue)">Entry</span><span style="--c:var(--down)">Stop loss</span><span style="--c:var(--up)">Take profit</span><span style="--c:#7d8ba1">Last price</span><span class="dim">▲▼ fills · ● exits</span><span class="dim" id="c-src"></span></div>
+            <div class="levels" id="levels"><div class="empty">No pending order or open position.</div></div>
+            <div class="chartwrap mode-tv" id="chartbox"><div id="tvbox"></div><canvas id="chart"></canvas><div class="ohlc" id="ohlc"></div></div>
+            <div class="legend" id="legend"><span style="--c:var(--blue)">Entry</span><span style="--c:var(--down)">Stop loss</span><span style="--c:var(--up)">Take profit</span><span style="--c:#7d8ba1">Last price</span><span class="dim">▲▼ fills · ● exits</span><span class="dim" id="c-src"></span></div>
+            <div class="note" id="tvnote">TradingView shows <b>BYBIT:SOLUSDT.P</b> and needs internet (<b>s3.tradingview.com</b>). The free chart cannot draw your orders, so entry, stop and target stay in the list above. Times are Asia/Manila. The interval follows the bot's entry timeframe.</div>
+            <div class="note" id="tvstatus" style="display:none"></div>
           </div>
           <div class="card">
             <h3><span>Recent trades</span><span class="sp"></span><a class="btn b-sm" onclick="go('trades')">View all</a></h3>
@@ -386,7 +409,7 @@ function go(p){if(!PAGES[p])p='overview';page=p;
   document.querySelectorAll('.page').forEach(e=>e.classList.toggle('on',e.id==='p-'+p));
   document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
   $('ptitle').textContent=PAGES[p];if(location.hash!=='#'+p)history.replaceState(null,'','#'+p);
-  if(p==='overview')requestAnimationFrame(drawChart);if(p==='logs')refreshLog()}
+  if(p==='overview'){if(chartMode==='bot')requestAnimationFrame(drawChart);else mountTv()}if(p==='logs')refreshLog()}
 document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.onclick=()=>go(a.dataset.p));
 window.addEventListener('hashchange',()=>go(location.hash.slice(1)));
 
@@ -501,7 +524,9 @@ function render(){if(!DATA)return;const b=DATA.bot,st=DATA.settings;S=b;
   if(b.last_command)$('lastcmd').textContent=`Last: ${b.last_command.command} → ${b.last_command.result} (${ltime(b.last_command.at)})`;
   let err='';if(b.alive&&b.last_error)err='Last error: '+b.last_error;if(!b.alive&&b.exit_code!=null&&b.exit_code!==0)err=`Bot exited with code ${b.exit_code}. Check the Logs tab.`;
   $('err').textContent=err;$('err').style.display=err?'block':'none';
-  renderTrades();if(!settingsLoaded)fillSettings(st);if(page==='overview')drawChart()}
+  renderTrades();paintLevels();if(isNum(b.price))$('c-price').textContent=(+b.price).toFixed(3);
+  if(!settingsLoaded)fillSettings(st);
+  if(page==='overview'){if(chartMode==='bot')drawChart();else syncTv()}}
 const sc=s=>s==='win'?'st-win':s==='loss'?'st-loss':s==='open'?'st-open':s==='pending'?'st-pending':'st-other';
 function renderTrades(){const fm=val('fmode'),fs=val('fstat');
   const tr=DATA.trades.filter(t=>(!fm||t.mode===fm)&&(!fs||(fs==='closed'?['win','loss','closed'].includes(t.status):fs==='active'?['pending','open'].includes(t.status):['cancelled','expired'].includes(t.status))));
@@ -518,8 +543,44 @@ function renderTrades(){const fm=val('fmode'),fs=val('fstat');
 ['fmode','fstat'].forEach(i=>$(i).onchange=()=>DATA&&renderTrades());
 
 /* ---------- chart ---------- */
+const TV_INTERVAL={1:'1',3:'3',5:'5',15:'15',30:'30',60:'60',120:'120',240:'240',360:'360',720:'720',1440:'D'};
+let chartMode='tv', tvWidget=null, tvIntervalOn=null, tvScript=null, tvGen=0;
+function savedChartMode(){try{return localStorage.getItem('smc-chart')==='bot'?'bot':'tv'}catch(e){return 'tv'}}
+function tvInterval(){const st=DATA&&DATA.settings||{}, b=S||{};const m=+(b.ltf_interval!=null?b.ltf_interval:st.ltf_interval!=null?st.ltf_interval:15);return TV_INTERVAL[m]||'15'}
+function levelRow(kind,t){if(!t)return '';const L=t.side==='Buy';
+  return `<div class="lvrow"><span class="tag ${L?'t-long':'t-short'}">${L?'LONG':'SHORT'}</span><span class="mut">${kind}</span><span>Entry <b>${esc(t.entry)}</b></span><span>Stop <b class="down">${esc(t.stop??'–')}</b></span><span>Target <b class="up">${esc(t.tp??'–')}</b></span><span class="mut">${esc(t.qty??t.size)} SOL</span></div>`}
+function paintLevels(){const b=S||{};const pend=b.alive?b.pending_order:null, pos=b.alive?b.position:null;
+  const html=levelRow('Pending',pend)+levelRow(pos&&pos.paper?'Position · paper':'Position',pos);
+  $('levels').innerHTML=html||'<div class="empty">Flat — no pending order or open position. Those prices are listed here because the TradingView chart cannot draw them.</div>'}
+function loadTvScript(){if(window.TradingView&&window.TradingView.widget)return Promise.resolve();
+  if(tvScript)return tvScript;
+  tvScript=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://s3.tradingview.com/tv.js';s.async=true;
+    const timer=setTimeout(()=>reject(new Error('TradingView took too long to load')),12000);
+    s.onload=()=>{clearTimeout(timer);(window.TradingView&&window.TradingView.widget)?resolve():reject(new Error('TradingView script loaded without a widget'))};
+    s.onerror=()=>{clearTimeout(timer);reject(new Error('TradingView script failed to load'))};
+    document.head.appendChild(s)}).catch(e=>{tvScript=null;throw e});
+  return tvScript}
+function mountTv(){const iv=tvInterval();
+  if(tvWidget&&tvIntervalOn===iv&&$('tvbox').querySelector('iframe'))return;
+  const gen=++tvGen, box=$('tvbox');
+  try{if(tvWidget&&tvWidget.remove)tvWidget.remove()}catch(e){}
+  tvWidget=null;box.innerHTML='';
+  loadTvScript().then(()=>{if(gen!==tvGen||chartMode!=='tv')return;tvIntervalOn=iv;
+    tvWidget=new TradingView.widget({autosize:true,symbol:'BYBIT:SOLUSDT.P',interval:iv,timezone:'Asia/Manila',theme:'dark',style:'1',locale:'en',toolbar_bg:'#0f141c',backgroundColor:'#0f141c',gridColor:'rgba(230,237,245,0.06)',hide_side_toolbar:false,allow_symbol_change:false,save_image:false,enable_publishing:false,withdateranges:false,container_id:'tvbox'});
+    $('tvstatus').style.display='none';$('c-src').textContent=`TradingView · BYBIT:SOLUSDT.P · ${iv} · Asia/Manila`}).catch(e=>{
+    if(gen!==tvGen)return;
+    $('tvstatus').style.display='block';$('tvstatus').textContent=e.message+'. Showing the bot chart instead.';
+    toast(e.message+'. Showing the bot chart.',true);setChartMode('bot',false)})}
+function syncTv(){if(chartMode!=='tv')return;if(tvIntervalOn&&tvIntervalOn!==tvInterval())mountTv()}
+function setChartMode(mode,persist){chartMode=mode==='bot'?'bot':'tv';
+  if(persist){try{localStorage.setItem('smc-chart',chartMode)}catch(e){}}
+  document.body.dataset.chart=chartMode;
+  document.querySelectorAll('#chartmode button').forEach(b=>b.classList.toggle('on',b.dataset.m===chartMode));
+  $('chartbox').classList.toggle('mode-tv',chartMode==='tv');$('chartbox').classList.toggle('mode-bot',chartMode==='bot');
+  if(chartMode==='tv')mountTv();else{$('ohlc').style.display='';if(page==='overview')requestAnimationFrame(drawChart)}}
+document.querySelectorAll('#chartmode button').forEach(b=>b.onclick=()=>setChartMode(b.dataset.m,true));
 const cv=$('chart');
-function drawChart(){if(!cv.offsetParent)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
+function drawChart(){if(chartMode!=='bot'||!cv.offsetParent)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
   const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
   const all=(CANDLES&&CANDLES.candles)||[];g.font='11px '+getComputedStyle(document.body).getPropertyValue('--mono');
@@ -574,6 +635,7 @@ async function refreshLog(){if(page!=='logs')return;try{const j=await api('/api/
   let lines=j.lines.length?j.lines:['(no log yet — start the bot)'];if(!S.alive&&S.exit_code&&j.console&&j.console.length)lines=lines.concat(['','--- console ---'],j.console);
   el.innerHTML=lines.map(l=>{const m=l.match(/^(\S+ \S+ UTC) (\w+)\s+(.*)$/);if(!m)return esc(l);const c=m[2]==='ERROR'?'e':m[2]==='WARNING'?'w':/PLACED|WOULD PLACE/.test(m[3])?'ok':'';return `<span class="ts">${esc(m[1])}</span> <span class="${c}">${esc(m[2].padEnd(7))} ${esc(m[3])}</span>`}).join('\n');
   if($('follow').checked)el.scrollTop=el.scrollHeight}catch(e){}}
+setChartMode(savedChartMode(),false);
 go(location.hash.slice(1)||'overview');
 refresh().then(refreshCandles);loadAbout();setInterval(refresh,3000);setInterval(refreshCandles,20000);setInterval(refreshLog,3000);
 </script>

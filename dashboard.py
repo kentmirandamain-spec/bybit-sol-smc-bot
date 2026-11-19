@@ -421,7 +421,7 @@ def run_job(kind: str, args: list[str], env_extra: dict | None = None) -> str:
 # HTTP
 # --------------------------------------------------------------------------- #
 class Handler(BaseHTTPRequestHandler):
-    server_version = "GrokBotDashboard/2.1"
+    server_version = "GrokBotDashboard/2.2"
 
     def log_message(self, fmt, *args):   # keep console quiet
         pass
@@ -441,6 +441,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        # X-Frame-Options stops other sites embedding this dashboard.
+        # Do not add a Content-Security-Policy here: the Overview chart loads
+        # https://s3.tradingview.com/tv.js in the browser and frames tradingview.com.
+        # _host_ok only checks requests that reach this process.
         self.send_header("X-Frame-Options", "DENY")
         for k, v in (extra_headers or {}).items():
             self.send_header(k, v)
@@ -624,7 +628,7 @@ LOGIN_HTML = """<!doctype html><html><head><meta charset=utf-8><meta name=viewpo
 align-items:center;justify-content:center;height:100vh;margin:0}form{background:#1e293b;padding:28px;border-radius:12px;width:280px}
 input,button{width:100%;padding:10px;margin-top:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;box-sizing:border-box}
 button{background:#2563eb;border:0;font-weight:600;cursor:pointer}.err{color:#f87171}</style></head><body>
-<form method=post action=/login><h3>Grok Bot · SOL Futures</h3><!--ERR--><input type=password name=password placeholder="Dashboard password" autofocus>
+<form method=post action=/login><svg width="36" height="36" viewBox="0 0 512 509.641" aria-hidden="true" style="color:#f4f7fb"><path fill="currentColor" d="M213.235 306.019l178.976-180.002v.169l51.695-51.763c-.924 1.32-1.86 2.605-2.785 3.89-39.281 54.164-58.46 80.649-43.07 146.922l-.09-.101c10.61 45.11-.744 95.137-37.398 131.836-46.216 46.306-120.167 56.611-181.063 14.928l42.462-19.675c38.863 15.278 81.392 8.57 111.947-22.03 30.566-30.6 37.432-75.159 22.065-112.252-2.92-7.025-11.67-8.795-17.792-4.263l-124.947 92.341zm-25.786 22.437l-.033.034L68.094 435.217c7.565-10.429 16.957-20.294 26.327-30.149 26.428-27.803 52.653-55.359 36.654-94.302-21.422-52.112-8.952-113.177 30.724-152.898 41.243-41.254 101.98-51.661 152.706-30.758 11.23 4.172 21.016 10.114 28.638 15.639l-42.359 19.584c-39.44-16.563-84.629-5.299-112.207 22.313-37.298 37.308-44.84 102.003-1.128 143.81z"/></svg><h3>Grok Bot · SOL Futures</h3><!--ERR--><input type=password name=password placeholder="Dashboard password" autofocus>
 <button>Log in</button></form></body></html>"""
 
 def page_html() -> str:
