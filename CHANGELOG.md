@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Opt-in `strategy_variant: fvg_mtf` (the default stays `default`). When left on default, entries stay 1h bias and 15m and the order path is unchanged. The variant waits for a 1h or 4h fair-value gap to be tapped, then a 5m change of character. Risk stays 5 USDT and the daily loss cap stays 15 USDT. The comparison is in `reports/fvg_mtf_backtest.md`. The variant is not turned on by this change.
+
 ## 1.2.0 - 2026-11-19
 
 - Telegram alerts and commands via the Bot API (long polling, standard library only). Only `TELEGRAM_CHAT_ID` is answered. `/close` needs `/close confirm` within 60 seconds. Settings has a test-message button.

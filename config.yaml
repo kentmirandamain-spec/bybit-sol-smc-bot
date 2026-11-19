@@ -13,6 +13,7 @@ category: linear
 
 htf_interval: 60       # higher timeframe (minutes) for bias / structure
 ltf_interval: 15       # lower timeframe (minutes) for entries
+strategy_variant: default   # default | fvg_mtf. fvg_mtf is opt-in research. Leave this on default.
 ltf_bars: 1000         # closed LTF candles loaded each evaluation
 htf_bars: 500          # closed HTF candles loaded each evaluation
 poll_seconds: 20       # how often the loop wakes up
@@ -68,6 +69,17 @@ strategy:
   trail_atr_mult: 1.0
   partial_tp_pct: 0            # 0 = off. 50 = close half at partial_at_r, rest at the target
   partial_at_r: 1.0
+
+# FVG MTF (used only when strategy_variant is fvg_mtf) --------------------
+# 1h/4h fair-value-gap tap, then a 5m CHoCH. Risk stays 5 USDT. See fvg_mtf.py.
+fvg_mtf:
+  sources: both             # 1h | 4h | both
+  buffer: pct               # pct = 0.05% of the order-block extreme; fixed = $0.05
+  min_rr: 1.0               # skip a limit whose target is closer than this many R. 0 = off
+  choch_bars_1h: 24         # 5m bars allowed after a 1h tap (2 hours)
+  choch_bars_4h: 48         # 5m bars allowed after a 4h tap (4 hours)
+  ob_lookback: 20
+  entry_expiry_bars: 12
 
 # MARKET DATA --------------------------------------------------------------
 # bybit (default, same feed as execution). "okx" is a public fallback feed ONLY
