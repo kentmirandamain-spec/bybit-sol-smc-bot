@@ -175,13 +175,14 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
       <a data-p="backtest"><svg><use href="#i-bt"/></svg>Backtest</a>
       <a data-p="logs"><svg><use href="#i-log"/></svg>Logs</a>
     </nav>
-    <div class="side-foot">SOLUSDT · USDT perpetual<br>Smart Money Concepts<br><span id="sfmode">–</span><br>Local only · 127.0.0.1</div>
+    <div class="side-foot">SOLUSDT · USDT perpetual<br>Smart Money Concepts<br><span id="sfmode">–</span><br><span id="appver">v<!--APP_VERSION--></span><br>Local only · 127.0.0.1</div>
   </aside>
 
   <main>
     <div class="top">
       <div class="mobile-brand"><svg width="28" height="28"><use href="#logo"/></svg></div>
       <h1 id="ptitle">Overview</h1>
+      <span class="dim" id="verchip" style="font-size:12px;font-weight:650">v<!--APP_VERSION--></span>
       <span id="mode" class="pill m-dry"><i></i>DRY RUN</span>
       <span id="run" class="pill s-off"><i></i>STOPPED</span>
       <span id="paused" class="pill s-pause" style="display:none"><i></i>ENTRIES PAUSED</span>
@@ -298,6 +299,27 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
             <button class="btn b-go" type="submit">Save settings</button>
           </div>
         </form>
+        <div class="card" id="about-card" style="margin-top:14px">
+          <h3>About &amp; updates</h3>
+          <dl class="rows" style="margin-bottom:4px">
+            <dt>Installed version</dt><dd id="about-ver">v<!--APP_VERSION--></dd>
+            <dt>Installed commit</dt><dd id="about-commit">–</dd>
+          </dl>
+          <div id="about-status" class="note" style="margin-top:8px">Not checked yet</div>
+          <div id="about-block" class="warnbox" style="display:none"></div>
+          <div class="toolbar" style="margin:12px 0 0">
+            <button class="btn b-pri" type="button" id="bChk" onclick="checkUpdates()">Check for updates</button>
+            <button class="btn b-go" type="button" id="bUpd" onclick="applyUpdate()" disabled>Update</button>
+            <button class="btn b-warn" type="button" id="bRb" onclick="rollbackUpdate()">Roll back</button>
+          </div>
+          <div class="note">Updates come from the <b>main</b> branch on GitHub. Git does not need to be installed. Your <b>.env</b>, <b>config.yaml</b> values, <b>logs/</b>, <b>state/</b> and <b>.venv</b> are kept. Replaced files are copied to <b>backups/</b> first. A private repository can use a read-only <b>GITHUB_TOKEN</b> in .env.</div>
+          <div id="about-new" style="display:none;margin-top:12px">
+            <h3 id="about-new-title">What's new</h3>
+            <div id="about-commits" class="note" style="margin-top:0"></div>
+            <pre class="out" id="about-log" style="max-height:220px;margin-top:8px;white-space:pre-wrap"></pre>
+          </div>
+          <pre class="out" id="upout" style="margin-top:12px">No update run yet.</pre>
+        </div>
       </section>
 
       <!-- BACKTEST -->
@@ -347,7 +369,7 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
 <script>
 "use strict";
 const $=id=>document.getElementById(id), val=id=>$(id).value;
-let S={}, DATA=null, CANDLES=null, settingsLoaded=false, mCb=null, page='overview', zoomN=120, hoverX=null;
+let S={}, DATA=null, CANDLES=null, settingsLoaded=false, mCb=null, page='overview', zoomN=120, hoverX=null, ABOUT=null;
 const INTERVALS=[1,3,5,15,30,60,120,240,360,720,1440];
 const ivName=m=>m>=1440?(m/1440)+'d':m>=60?(m/60)+'h':m+'m';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -386,7 +408,8 @@ function confirmCancel(){const p=S.pending_order;modal('Cancel pending order?',p
 function confirmClose(){const p=S.position;modal('Close position at market?',p?`Sends a market order to close your ${p.side==='Buy'?'LONG':'SHORT'} ${p.size} SOL position${p.paper?' (paper)':''}. This cannot be undone.`:'No open position is shown right now.','','Close at market',ok=>{if(ok)cmd('close_position',{confirm:true})})}
 async function pollJob(jid,out,btn,onDone){out.textContent='Running…';if(btn)btn.disabled=true;
   try{for(let i=0;i<700;i++){await new Promise(r=>setTimeout(r,1500));const j=await api('/api/job?id='+jid);
-    if(j.status!=='running'){out.textContent=j.output||'(no output)';if(onDone)onDone(j);if(j.status==='error')toast('Job finished with an error',true);else toast('Finished');break}}}
+    if(j.output)out.textContent=j.output;
+    if(j.status!=='running'){if(!j.output)out.textContent='(no output)';if(onDone)onDone(j);if(j.status==='error')toast(j.message||'Finished with an error',true);else toast(j.message||'Finished');break}}}
   catch(e){out.textContent=e.message}finally{if(btn)btn.disabled=false;refresh()}}
 async function once(){try{const j=await api('/api/once',{data_source:val('ds')});toast(j.message);if(j.job){go('backtest');$('btk').style.display='none';pollJob(j.job,$('btout'))}}catch(e){toast(e.message,true)}}
 async function backtest(){try{const j=await api('/api/backtest',{days:+val('btdays'),source:val('btsrc')});toast(j.message);$('btk').style.display='none';pollJob(j.job,$('btout'),$('bBt'),parseBacktest)}catch(e){toast(e.message,true)}}
@@ -398,6 +421,44 @@ function parseBacktest(j){const o=j.output||'';const m=o.match(/\[net of est\. f
   $('b-r').innerHTML=`<span class="${cls(m[5])}">${sgnNum(m[5],2,' R')}</span>`;$('b-rg').textContent=g?`gross ${sgnNum(g[1],2,' R')}`:'';
   $('b-dd').innerHTML=`<span class="down">${num(m[7])} R</span>`;
   if(p){$('b-pnl').innerHTML=`<span class="${cls(p[2])}">${sgnNum(p[2])}</span>`;$('b-ls').textContent=`${p[3]} longs · ${p[4]} shorts @ ${p[1]} USDT risk`}}
+
+/* ---------- updates ---------- */
+function paintAbout(a){if(!a)return;ABOUT=a;
+  const ver='v'+(a.version||'unknown');
+  ['appver','verchip'].forEach(id=>{const el=$(id);if(el)el.textContent=ver});
+  if($('about-ver'))$('about-ver').textContent=ver;
+  if($('about-commit'))$('about-commit').textContent=a.commit?String(a.commit).slice(0,12):'not recorded yet';
+  const blk=$('about-block');
+  if(blk){if(a.blocked){blk.style.display='block';blk.textContent=a.blocked}else blk.style.display='none'}
+  if($('bUpd')&&a.blocked)$('bUpd').disabled=true;
+  if($('bRb'))$('bRb').disabled=!!a.blocked||!(a.backups&&a.backups.length)}
+async function loadAbout(){try{paintAbout(await api('/api/about'))}catch(e){}}
+async function checkUpdates(){const b=$('bChk');if(b)b.disabled=true;$('about-status').textContent='Checking…';
+  try{const j=await api('/api/update/check',{});
+    if(j.blocked){$('about-block').style.display='block';$('about-block').textContent=j.blocked}
+    if(j.error){$('about-status').textContent=j.error;$('bUpd').disabled=true;toast(j.error,true);return}
+    if(!j.update_available){$('about-status').textContent='Up to date · v'+j.local_version;$('bUpd').disabled=true;$('bUpd').textContent='Update';toast('You are on the latest version')}
+    else{const label=j.local_version!==j.remote_version?('Update available · v'+j.remote_version):('New commits on main · v'+j.remote_version);
+      $('about-status').textContent=label;$('bUpd').disabled=!!j.blocked;$('bUpd').textContent='Update to v'+j.remote_version}
+    const commits=j.commits||[];const show=!!(j.update_available&&(commits.length||j.changelog));
+    $('about-new').style.display=show?'block':'none';
+    $('about-new-title').textContent="What's new";
+    $('about-commits').innerHTML=commits.map(c=>`<div><span class="num dim">${esc((c.date||'').replace('T',' ').replace('Z',''))}</span> <span class="num">${esc(c.sha)}</span> ${esc(c.message)}</div>`).join('')||'<div class="dim">No commit messages returned.</div>';
+    $('about-log').textContent=j.changelog||'(no changelog text)';
+    loadAbout()}
+  catch(e){$('about-status').textContent=e.message;toast(e.message,true)}
+  finally{if(b)b.disabled=false}}
+function applyUpdate(){if(ABOUT&&ABOUT.blocked){toast(ABOUT.blocked,true);return}
+  modal('Update from GitHub?','The main branch will replace program files in this folder. Your .env, config.yaml values, logs, state and .venv stay. Replaced files are saved under backups/ so you can roll back. If the bot is running with an open position or a pending order, the update is refused until you stop it.','','Update',async ok=>{
+    if(!ok)return;try{const j=await api('/api/update/apply',{confirm:true});toast(j.message||'Update started');
+      pollJob(j.job,$('upout'),$('bUpd'),job=>{if(job.restarting){toast('Restarting the dashboard…');setTimeout(()=>location.reload(),4500)}else loadAbout()})}
+    catch(e){toast(e.message,true)}})}
+function rollbackUpdate(){const b=ABOUT&&ABOUT.backups&&ABOUT.backups[0];
+  if(!b){toast('No backup to roll back to',true);return}
+  if(ABOUT&&ABOUT.blocked){toast(ABOUT.blocked,true);return}
+  modal('Roll back the last update?','Restores program files from backup '+b.id+' (v'+(b.from_version||'?')+' before that update). Your .env, logs, state and .venv stay.','','Roll back',async ok=>{
+    if(!ok)return;try{const j=await api('/api/update/rollback',{confirm:true,backup:b.id});toast(j.message||'Rollback started');
+      pollJob(j.job,$('upout'),$('bRb'),()=>loadAbout())}catch(e){toast(e.message,true)}})}
 
 /* ---------- settings ---------- */
 function fillSettings(s){const f=$('sform');for(const n of ['htf_interval','ltf_interval'])f[n].innerHTML=INTERVALS.map(m=>`<option value="${m}">${ivName(m)}</option>`).join('');
@@ -514,6 +575,6 @@ async function refreshLog(){if(page!=='logs')return;try{const j=await api('/api/
   el.innerHTML=lines.map(l=>{const m=l.match(/^(\S+ \S+ UTC) (\w+)\s+(.*)$/);if(!m)return esc(l);const c=m[2]==='ERROR'?'e':m[2]==='WARNING'?'w':/PLACED|WOULD PLACE/.test(m[3])?'ok':'';return `<span class="ts">${esc(m[1])}</span> <span class="${c}">${esc(m[2].padEnd(7))} ${esc(m[3])}</span>`}).join('\n');
   if($('follow').checked)el.scrollTop=el.scrollHeight}catch(e){}}
 go(location.hash.slice(1)||'overview');
-refresh().then(refreshCandles);setInterval(refresh,3000);setInterval(refreshCandles,20000);setInterval(refreshLog,3000);
+refresh().then(refreshCandles);loadAbout();setInterval(refresh,3000);setInterval(refreshCandles,20000);setInterval(refreshLog,3000);
 </script>
 </body></html>

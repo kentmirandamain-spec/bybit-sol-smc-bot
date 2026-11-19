@@ -37,6 +37,8 @@ and isolated margin are set via the API on start.
 | `.env.example` | API key template |
 | `smcbot.service` | systemd unit for 24/7 |
 | `dashboard.py` / `dashboard.html` | Local web dashboard (http://127.0.0.1:8080) |
+| `updater.py` | Download updates from GitHub main (no git required) |
+| `VERSION` / `CHANGELOG.md` | Installed version and what changed |
 | `start_dashboard.bat` | Windows double-click launcher |
 
 ## 🖥️ Easy mode: the Grok Bot dashboard (Windows, beginners start here)
@@ -73,6 +75,43 @@ Notes:
   (Windows Security → App & browser control → Smart App Control) or run the bot on a VPS (see section 4).
 - Files the dashboard reads: `state/status.json` (heartbeat), `state/trades.json` (trade journal),
   `logs/bot.log`. Commands are passed as small files in `state/commands/`.
+
+## Updating the bot
+
+The dashboard updates itself from the `main` branch of
+[kentmirandamain-spec/bybit-sol-smc-bot](https://github.com/kentmirandamain-spec/bybit-sol-smc-bot).
+You do not need git installed, and the updater uses only Python's standard library.
+
+1. Open the dashboard and go to **Settings → About & updates**. The page shows the version from the `VERSION` file.
+2. **Check for updates** compares that version (and, after the first successful check or update, the recorded commit) with `main`.
+   You'll see what's new: commit messages from GitHub, and the part of `CHANGELOG.md` above your current version.
+3. **Update** asks you to confirm, then downloads the main-branch zip and replaces program files in this folder.
+
+What is kept:
+
+- `.env` (API keys and `GITHUB_TOKEN`)
+- your `config.yaml` values — new keys from the updated default config are added, existing values and comments stay
+- `logs/`, `state/` (trade journal, bot status) and `.venv/`
+
+Every replaced file is copied to `backups/<timestamp>/` first. **Roll back** restores the newest backup.
+The install stamp `state/update.json` (version + commit only, no secrets) is the one file under `state/` the updater writes.
+
+The update is refused while the bot is **running with an open position or a pending order**. Press **Stop** first.
+Stopping the bot does not cancel a stop-loss or take-profit already sitting on the exchange.
+
+If `requirements.txt` changed, the dashboard runs `pip install -r requirements.txt` with the **same Python** and shows the output.
+That is the only time an update installs packages. On Windows, after a successful update the dashboard tries to restart itself.
+Otherwise close the window and double-click `start_dashboard.bat` again. If the bot was running (flat, with no position), stop and start it too so it loads the new code.
+
+The repository is public, so no token is required. If you later make it private, put a read-only token in `.env`:
+
+```
+GITHUB_TOKEN=github_pat_...
+```
+
+A fine-grained personal access token with access to this repository and **Contents: Read-only** is enough. The token is sent only to GitHub and is not written into the log or the page.
+
+If an update won't start afterwards, copy the files from the newest `backups/<timestamp>/` folder back over this directory. Do not copy that backup over `.env`, `logs/`, `state/` or `.venv/`.
 
 ## 1. Create the Bybit API key (do this carefully)
 1. Bybit → profile → **API** → *Create New Key* → **System-generated API Keys**.

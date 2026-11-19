@@ -31,6 +31,8 @@ from urllib.parse import urlparse, parse_qs
 import yaml
 from dotenv import load_dotenv
 
+import updater
+
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / "config.yaml"
 STATE = ROOT / "state"
@@ -50,6 +52,8 @@ SESSIONS: set[str] = set()
 LOCK = threading.Lock()
 BOT_PROC: subprocess.Popen | None = None
 JOBS: dict[str, dict] = {}
+SERVER: ThreadingHTTPServer | None = None
+DASH_PORT = int(os.getenv("DASHBOARD_PORT", "8080") or "8080")
 
 
 # --------------------------------------------------------------------------- #
@@ -311,6 +315,86 @@ def stop_bot() -> str:
     return "Stop requested"
 
 
+def _update_busy() -> bool:
+    return any(v.get("status") == "running" and v.get("kind") in ("update", "rollback") for v in JOBS.values())
+
+
+def run_custom_job(kind: str, work) -> str:
+    jid = uuid.uuid4().hex[:10]
+    JOBS[jid] = {"id": jid, "kind": kind, "status": "running", "output": "", "started": time.time(),
+                 "restarting": False, "message": ""}
+
+    def wrap():
+        try:
+            work(jid)
+        except Exception as e:
+            JOBS[jid].update(status="error", output=updater.redact(str(e)), message="Update failed")
+    threading.Thread(target=wrap, daemon=True).start()
+    for old in [k for k, v in JOBS.items() if time.time() - v["started"] > 3600]:
+        JOBS.pop(old, None)
+    return jid
+
+
+def schedule_dashboard_restart() -> bool:
+    """Open a new dashboard window on Windows, then stop this one so the port is free.
+
+    Other platforms only tell the user to restart: stopping a process that a service
+    manager owns is not safe from here.
+    """
+    if os.name != "nt":
+        return False
+    if os.getenv("SMCBOT_NO_RESTART", "").strip().lower() in ("1", "true", "yes"):
+        return False
+    port = DASH_PORT or 8080
+    script = str(ROOT / "dashboard.py")
+    # ping waits ~4s so this process can release the port. `start` opens a new console.
+    cmd = f'ping 127.0.0.1 -n 5 >nul & start "SOL SMC Bot Dashboard" "{PY}" -u "{script}" --port {port}'
+    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    subprocess.Popen(["cmd.exe", "/c", cmd], cwd=str(ROOT), creationflags=flags,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     close_fds=True)
+
+    def _stop():
+        if SERVER is not None:
+            SERVER.shutdown()
+    threading.Timer(2.0, _stop).start()
+    return True
+
+
+def _finish_update_job(jid: str, result: updater.ApplyResult) -> None:
+    restarting = False
+    text = result.output
+    if result.ok and os.name == "nt":
+        restarting = schedule_dashboard_restart()
+        if restarting:
+            text += "\n\nRestarting the dashboard…"
+    JOBS[jid].update(status="done" if result.ok else "error", output=text, restarting=restarting,
+                     message=result.summary)
+
+
+def _run_update(jid: str) -> None:
+    def progress(msg: str) -> None:
+        JOBS[jid]["output"] = msg
+    try:
+        result = updater.perform_update(ROOT, token=updater.github_token(ROOT), status_fn=bot_state,
+                                        on_progress=progress)
+    except Exception as e:
+        JOBS[jid].update(status="error", output=updater.redact(str(e)), message="Update failed")
+        return
+    _finish_update_job(jid, result)
+
+
+def _run_rollback(jid: str, backup: str | None) -> None:
+    def progress(msg: str) -> None:
+        JOBS[jid]["output"] = msg
+    try:
+        result = updater.rollback(ROOT, backup, status_fn=bot_state, on_progress=progress)
+    except Exception as e:
+        JOBS[jid].update(status="error", output=updater.redact(str(e)), message="Rollback failed")
+        return
+    _finish_update_job(jid, result)
+
+
 def run_job(kind: str, args: list[str], env_extra: dict | None = None) -> str:
     jid = uuid.uuid4().hex[:10]
     JOBS[jid] = {"id": jid, "kind": kind, "status": "running", "output": "", "started": time.time()}
@@ -337,7 +421,7 @@ def run_job(kind: str, args: list[str], env_extra: dict | None = None) -> str:
 # HTTP
 # --------------------------------------------------------------------------- #
 class Handler(BaseHTTPRequestHandler):
-    server_version = "GrokBotDashboard/2.0"
+    server_version = "GrokBotDashboard/2.1"
 
     def log_message(self, fmt, *args):   # keep console quiet
         pass
@@ -426,6 +510,17 @@ class Handler(BaseHTTPRequestHandler):
             jid = parse_qs(urlparse(self.path).query).get("id", [""])[0]
             j = JOBS.get(jid)
             return self._json(j if j else {"error": "unknown job"}, 200 if j else 404)
+        if path == "/api/about":
+            meta = updater.read_installed(ROOT)
+            commit = meta.get("commit") if isinstance(meta.get("commit"), str) else None
+            return self._json({
+                "version": updater.read_version(ROOT),
+                "commit": commit,
+                "updated_at": meta.get("updated_at"),
+                "backups": updater.list_backups(ROOT),
+                "blocked": updater.trading_block_reason(bot_state()),
+                "auto_restart": os.name == "nt",
+            })
         return self._json({"error": "not found"}, 404)
 
     # -- POST
@@ -489,6 +584,33 @@ class Handler(BaseHTTPRequestHandler):
                 saved = save_settings(data)
                 msg = "Settings saved." + (" Restart the bot to apply them." if bot_state()["alive"] else "")
                 return self._json({"ok": True, "message": msg, "settings": saved})
+            if path == "/api/update/check":
+                info = updater.check_for_updates(ROOT, token=updater.github_token(ROOT))
+                info["blocked"] = updater.trading_block_reason(bot_state())
+                return self._json(info)
+            if path == "/api/update/apply":
+                if data.get("confirm") is not True:
+                    raise ValueError("Updating needs confirm=true")
+                reason = updater.trading_block_reason(bot_state())
+                if reason:
+                    raise ValueError(reason)
+                if _update_busy():
+                    raise ValueError("An update or rollback is already running")
+                jid = run_custom_job("update", _run_update)
+                return self._json({"ok": True, "job": jid, "message": "Update started"})
+            if path == "/api/update/rollback":
+                if data.get("confirm") is not True:
+                    raise ValueError("Rollback needs confirm=true")
+                reason = updater.trading_block_reason(bot_state())
+                if reason:
+                    raise ValueError(reason)
+                if _update_busy():
+                    raise ValueError("An update or rollback is already running")
+                backup = data.get("backup")
+                if backup is not None and not isinstance(backup, str):
+                    raise ValueError("backup must be a name")
+                jid = run_custom_job("rollback", lambda job_id, name=backup: _run_rollback(job_id, name))
+                return self._json({"ok": True, "job": jid, "message": "Rollback started"})
         except ValueError as e:
             return self._json({"ok": False, "error": str(e)}, 400)
         except Exception as e:
@@ -507,16 +629,20 @@ button{background:#2563eb;border:0;font-weight:600;cursor:pointer}.err{color:#f8
 
 def page_html() -> str:
     f = ROOT / "dashboard.html"
-    return f.read_text(encoding="utf-8") if f.exists() else "<h1>dashboard.html missing</h1>"
+    html = f.read_text(encoding="utf-8") if f.exists() else "<h1>dashboard.html missing</h1>"
+    return html.replace("<!--APP_VERSION-->", updater.read_version(ROOT))
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=int(os.getenv("DASHBOARD_PORT", "8080")))
     ap.add_argument("--no-browser", action="store_true")
+    global SERVER, DASH_PORT
     args = ap.parse_args()
+    DASH_PORT = args.port
     STATE.mkdir(exist_ok=True)
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    SERVER = srv
     url = f"http://127.0.0.1:{args.port}"
     print(f"Grok Bot dashboard running at {url}")
     print("Ctrl+C or closing this window stops the DASHBOARD only. A started bot keeps running in the background;")
