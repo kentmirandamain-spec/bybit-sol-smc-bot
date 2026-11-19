@@ -34,6 +34,7 @@ from dotenv import load_dotenv
 import learn
 import learn_daily
 import news
+import telegram_bot
 import updater
 
 ROOT = Path(__file__).resolve().parent
@@ -649,6 +650,14 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("A study or update is already running")
                 jid = run_custom_job("learn", lambda job_id, d=days, src=source: _run_learn(job_id, d, src))
                 return self._json({"ok": True, "job": jid, "message": f"Learning study started ({days} days)"})
+            if path == "/api/telegram/test":
+                if data.get("confirm") is not True:
+                    raise ValueError("Sending a test message needs confirm=true")
+                token, chat = telegram_bot.credentials(ROOT)
+                if not token or not chat:
+                    raise ValueError("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env first")
+                telegram_bot.Telegram(token, chat).send("Grok Bot test message. Commands: /help")
+                return self._json({"ok": True, "message": "Test message sent to your Telegram chat."})
             if path == "/api/learning/daily-apply":
                 if data.get("confirm") is not True:
                     raise ValueError("Applying the daily proposal needs confirm=true")

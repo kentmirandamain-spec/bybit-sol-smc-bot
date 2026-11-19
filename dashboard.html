@@ -329,6 +329,8 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
               <label class="f">USD news filter<select name="news_filter"><option value="false">Off</option><option value="true">Pause around high-impact events</option></select></label>
               <label class="f">Minutes before and after<input name="news_pause_minutes" type="number" step="5" min="0" max="240"></label>
             </div><div class="warnbox">Turning dry run off on mainnet means real money. You'll be asked to type <b>GO LIVE</b>.</div>
+            <div class="note" id="newsbox">News blackouts load when this page opens.</div>
+            <div class="toolbar"><button class="btn" type="button" onclick="testTelegram()">Send test Telegram message</button></div>
             <div class="note" id="envover"></div></div>
           </div>
           <div class="card" style="margin-top:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -534,6 +536,8 @@ function parseBacktest(j){const o=j.output||'';const m=o.match(/\[net of est\. f
   $('b-dd').innerHTML=`<span class="down">${num(m[7])} R</span>`;
   if(p){$('b-pnl').innerHTML=`<span class="${cls(p[2])}">${sgnNum(p[2])}</span>`;$('b-ls').textContent=`${p[3]} longs · ${p[4]} shorts @ ${p[1]} USDT risk`}}
 
+function testTelegram(){modal('Send a Telegram test?','Uses TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID from .env. Other chats are ignored.','','Send',async ok=>{
+  if(!ok)return;try{const j=await api('/api/telegram/test',{confirm:true});toast(j.message)}catch(e){toast(e.message,true)}})}
 function loadNews(){api('/api/news').then(j=>{
   const lines=(j.windows||[]).map(w=>esc(w.start)+' – '+esc(w.end)+' · '+esc(w.title));
   $('newsbox').textContent=(j.warning?j.warning+' ':'')+(lines.length?lines.join(' | '):'No blackout window on the calendar.');

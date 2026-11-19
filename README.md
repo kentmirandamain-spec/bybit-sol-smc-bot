@@ -79,6 +79,15 @@ Notes:
 - Files the dashboard reads: `state/status.json` (heartbeat), `state/trades.json` (trade journal),
   `logs/bot.log`. Commands are passed as small files in `state/commands/`.
 
+## Telegram
+
+1. In Telegram, open `@BotFather` and create a bot with `/newbot`. Copy the token.
+2. Message your new bot once, then open `https://api.telegram.org/bot<token>/getUpdates` and copy the numeric `chat.id`.
+3. Put both in `.env` as `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. The bot ignores every other chat.
+4. On the dashboard Settings page, **Send test Telegram message** checks the connection.
+
+Commands: `/status`, `/pause`, `/resume`, `/trades`, `/pnl`, `/help`. `/close` does nothing until you send `/close confirm` within 60 seconds.
+
 ## Updating the bot
 
 The dashboard updates itself from the `main` branch of

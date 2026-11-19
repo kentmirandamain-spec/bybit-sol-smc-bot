@@ -35,9 +35,12 @@ from pybit.unified_trading import HTTP
 import learn
 import market_data
 import news
+import recovery
 import risk
 import smc
+import telegram_bot
 import trade_manage
+import weekly_report
 from strategy import run_strategy
 
 ROOT = Path(__file__).resolve().parent
@@ -434,6 +437,7 @@ class Bot:
             learn.merge_rows(ROOT, rows)
 
     def _journal_new(self, st, sz, sid, order_id=None):
+        self._alert(f"Order working: {st.side} {self.symbol} {sz.qty} @ {st.entry} SL {st.stop} TP {st.tp}")
         self.trades.append(dict(
             id=sid, mode=self.mode, symbol=self.symbol, side=st.side, created_at=fmt_ms(st.created_ts),
             entry=st.entry, stop=st.stop, tp=st.tp, qty=sz.qty, risk_usdt=round(sz.risk_usdt, 4),
@@ -451,6 +455,7 @@ class Bot:
         t.update(exit_price=round(float(exit_price), 6), pnl_usdt=round(float(pnl), 4),
                  r=round(float(pnl) / float(self.rc["risk_usdt"]), 3), closed_at=now_iso(),
                  status=status or ("win" if pnl > 0 else "loss"))
+        self._alert(f"Exit {t['side']} {t.get('symbol')} {t['status']} {t['r']}R ({t['pnl_usdt']} USDT)")
 
     def _sync_dry_journal(self, setups):
         by_id = {self._setup_id(s): s for s in setups}
@@ -697,6 +702,7 @@ class Bot:
         try:
             self.http.cancel_order(category=self.cat, symbol=self.symbol, orderId=o["orderId"])
             log.info("Cancelled order %s (%s)", o["orderLinkId"], why)
+            self._alert(f"Cancelled {o.get('orderLinkId')} ({why})")
         except Exception as e:
             log.warning("Cancel %s failed: %s", o["orderLinkId"], e)
 
@@ -782,6 +788,88 @@ class Bot:
             return f"market close sent ({side} {pos['size']}), orderId={r['result'].get('orderId')}"
         return f"unknown command '{cmd}'"
 
+    def _recover(self):
+        events = []
+        if self.dry:
+            events.append({"action": "load_state", "symbol": self.symbol, "reason": "dry-run journal reloaded from disk"})
+        else:
+            try:
+                pos = self.open_position()
+                orders = self.bot_orders()
+                events = recovery.reconcile(pos, orders, self.symbol)
+                for event in events:
+                    if event["action"] == "cancel" and event.get("orderId"):
+                        self.http.cancel_order(category=self.cat, symbol=self.symbol, orderId=event["orderId"])
+                    if event["action"] == "replace_protection" and pos:
+                        stop = pos.get("stopLoss") or ""
+                        tp = pos.get("takeProfit") or ""
+                        log.warning("Open %s position is missing SL/TP (sl=%s tp=%s). Set them on the exchange if the bot did not attach them.",
+                                    self.symbol, stop, tp)
+                        self._alert(f"Recovery: {self.symbol} position missing stop or target")
+            except Exception as exc:
+                events.append({"action": "error", "reason": str(exc)})
+                log.warning("Recovery check failed: %s", exc)
+        self.status["recovery"] = events
+        if events:
+            log.info("Recovery: %s", events)
+
+    def _start_telegram(self):
+        token, chat = telegram_bot.credentials(ROOT)
+        self.telegram = telegram_bot.Telegram(token, chat)
+        if not self.telegram.enabled or self.cfg.get("telegram_alerts") is False:
+            return
+        self.alerter = self.telegram.send
+
+        def loop():
+            while _running:
+                try:
+                    self.telegram.poll(self._on_telegram, timeout=20)
+                except Exception as exc:
+                    log.warning("Telegram poll failed: %s", exc)
+                    time.sleep(5)
+
+        import threading
+        threading.Thread(target=loop, daemon=True).start()
+        self._alert(f"Grok Bot online ({self.mode} {self.symbol})")
+
+    def _on_telegram(self, text: str) -> str:
+        reply, self.telegram.close_until, action = telegram_bot.handle_text(text, self.telegram.close_until)
+        if action == "pause":
+            self.state["paused"] = True
+            self._save_state()
+        elif action == "resume":
+            self.state["paused"] = False
+            self._save_state()
+        elif action == "close":
+            self.run_command("close_position")
+        elif action == "status":
+            return f"{self.mode} {self.symbol} paused={bool(self.state.get('paused'))} price={self.status.get('price')}"
+        elif action == "pnl":
+            return f"Today {self.todays_pnl():.2f} USDT"
+        elif action == "trades":
+            recent = [t for t in self.trades if t.get("mode") == self.mode][-5:]
+            if not recent:
+                return "No trades yet."
+            return "\n".join(f"{t.get('symbol')} {t.get('side')} {t.get('status')} r={t.get('r')}" for t in recent)
+        return reply
+
+    def _maybe_weekly(self):
+        try:
+            last = None
+            marker = ROOT / "state" / "reports" / "last_week.txt"
+            if marker.exists():
+                last = marker.read_text(encoding="utf-8").strip()
+            now = datetime.now(timezone.utc)
+            if not weekly_report.due(now, last):
+                return
+            report = weekly_report.build(self.trades, [])
+            path = weekly_report.write(ROOT, report)
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(report["week"], encoding="utf-8")
+            self._alert(f"Weekly {report['week']}: {report['trades']} trades, expectancy {report['expectancy']}R. {path.name}")
+        except Exception as exc:
+            log.debug("weekly report skipped: %s", exc)
+
     # -------------------------------------------------------------- loop ----
     def run(self, iterations: int = 0, once: bool = False):
         global _running
@@ -803,6 +891,8 @@ class Bot:
                 time.sleep(1)
         self.load_instrument()
         self.prepare_account()
+        self._recover()
+        self._start_telegram()
         ltf_ms = int(self.cfg["ltf_interval"]) * 60_000
         tick = 2.0                              # loop granularity (commands / heartbeat)
         poll = float(self.cfg["poll_seconds"])
@@ -829,8 +919,10 @@ class Bot:
                 except Exception as e:
                     log.exception("Evaluation error: %s", e)
                     self.status["last_error"] = str(e)[:300]
+                    self._alert(f"Error: {e}")
                     backoff_until = time.time() + backoff
                     backoff = min(backoff * 2, 300)
+                self._maybe_weekly()
                 n += 1
                 if once or (iterations and n >= iterations):
                     break
