@@ -33,6 +33,7 @@ from dotenv import load_dotenv
 
 import learn
 import learn_daily
+import news
 import updater
 
 ROOT = Path(__file__).resolve().parent
@@ -169,6 +170,8 @@ FIELDS = {   # key: (section, type, validator-description)
     "tp_mode": ("strategy", str, ["rr", "liquidity"]),
     "htf_interval": (None, int, INTERVALS),
     "ltf_interval": (None, int, INTERVALS),
+    "news_filter": (None, bool, None),
+    "news_pause_minutes": (None, int, (0, 240)),
     "dry_run": (None, bool, None),
     "testnet": (None, bool, None),
 }
@@ -539,6 +542,8 @@ class Handler(BaseHTTPRequestHandler):
             jid = parse_qs(urlparse(self.path).query).get("id", [""])[0]
             j = JOBS.get(jid)
             return self._json(j if j else {"error": "unknown job"}, 200 if j else 404)
+        if path == "/api/news":
+            return self._json(news.upcoming(ROOT, load_cfg()))
         if path == "/api/learning":
             view = learn.dashboard_view(ROOT, load_cfg())
             view["daily"] = learn_daily.status(ROOT)

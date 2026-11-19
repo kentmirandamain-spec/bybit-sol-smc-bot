@@ -31,6 +31,11 @@ risk:
   max_consecutive_losses: 3    # 0 = off. Pause new entries for the rest of the UTC day
   streak_risk_usdt: 0          # 0 = off. While losing, risk this much; never above risk_usdt and never above 5
 
+# NEWS ---------------------------------------------------------------------
+news_filter: false             # pause new entries around high-impact USD events
+news_pause_minutes: 30
+news_blackouts: ""             # manual UTC times, comma-separated: 2026-11-19 13:30
+
 # STRATEGY -----------------------------------------------------------------
 strategy:
   swing_left: 3                # LTF fractal swing lookback (bars each side)

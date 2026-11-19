@@ -34,6 +34,7 @@ from pybit.unified_trading import HTTP
 
 import learn
 import market_data
+import news
 import risk
 import smc
 import trade_manage
@@ -365,6 +366,17 @@ class Bot:
         except Exception as exc:
             log.warning("Partial close failed: %s", exc)
 
+    def _news_blocked(self) -> bool:
+        if not self.cfg.get("news_filter") and not str(self.cfg.get("news_blackouts") or "").strip():
+            return False
+        info = news.upcoming(ROOT, self.cfg)
+        if info.get("warning"):
+            log.warning("%s", info["warning"])
+        if info.get("blocked"):
+            log.info("News blackout (%s) - no new entries", info.get("title"))
+            return True
+        return False
+
     def _alert(self, text: str):
         sender = getattr(self, "alerter", None)
         if not sender:
@@ -389,6 +401,8 @@ class Bot:
                 log.warning("Daily loss limit hit (%.2f USDT <= -%.2f) - no new entries today (UTC)", pnl, ml)
                 self._alert(f"Daily loss limit hit ({pnl:.2f} USDT). No new entries today.")
                 return False
+        if self._news_blocked():
+            return False
         if trade_manage.circuit_blocked(self.trades, int(self.rc.get("max_consecutive_losses") or 0)):
             log.warning("Circuit breaker: consecutive losses - no new entries for the rest of the UTC day")
             self._alert("Circuit breaker: consecutive losses. No new entries for the rest of the UTC day.")

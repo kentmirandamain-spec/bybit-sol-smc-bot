@@ -326,6 +326,8 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
             <div class="card"><h3>Trading mode</h3><div class="fgrid">
               <label class="f">Dry run<select name="dry_run"><option value="true">On — no real orders</option><option value="false">Off — send orders</option></select></label>
               <label class="f">Network<select name="testnet"><option value="false">Mainnet (real funds)</option><option value="true">Testnet</option></select></label>
+              <label class="f">USD news filter<select name="news_filter"><option value="false">Off</option><option value="true">Pause around high-impact events</option></select></label>
+              <label class="f">Minutes before and after<input name="news_pause_minutes" type="number" step="5" min="0" max="240"></label>
             </div><div class="warnbox">Turning dry run off on mainnet means real money. You'll be asked to type <b>GO LIVE</b>.</div>
             <div class="note" id="envover"></div></div>
           </div>
@@ -496,7 +498,7 @@ function go(p){if(!PAGES[p])p='overview';page=p;
   document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
   $('ptitle').textContent=PAGES[p];if(location.hash!=='#'+p)history.replaceState(null,'','#'+p);
   if(p==='overview'){if(chartMode==='bot')requestAnimationFrame(drawChart);else mountTv()}
-  if(p==='logs')refreshLog();if(p==='learning')loadLearning()}
+  if(p==='logs')refreshLog();if(p==='learning')loadLearning();if(p==='settings')loadNews()}
 document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.onclick=()=>go(a.dataset.p));
 window.addEventListener('hashchange',()=>go(location.hash.slice(1)));
 
@@ -531,6 +533,11 @@ function parseBacktest(j){const o=j.output||'';const m=o.match(/\[net of est\. f
   $('b-r').innerHTML=`<span class="${cls(m[5])}">${sgnNum(m[5],2,' R')}</span>`;$('b-rg').textContent=g?`gross ${sgnNum(g[1],2,' R')}`:'';
   $('b-dd').innerHTML=`<span class="down">${num(m[7])} R</span>`;
   if(p){$('b-pnl').innerHTML=`<span class="${cls(p[2])}">${sgnNum(p[2])}</span>`;$('b-ls').textContent=`${p[3]} longs · ${p[4]} shorts @ ${p[1]} USDT risk`}}
+
+function loadNews(){api('/api/news').then(j=>{
+  const lines=(j.windows||[]).map(w=>esc(w.start)+' – '+esc(w.end)+' · '+esc(w.title));
+  $('newsbox').textContent=(j.warning?j.warning+' ':'')+(lines.length?lines.join(' | '):'No blackout window on the calendar.');
+}).catch(e=>{$('newsbox').textContent=e.message})}
 
 /* ---------- learning ---------- */
 function rTxt(x){return x==null?'–':((x>0?'+':'')+Number(x).toFixed(3)+' R')}
