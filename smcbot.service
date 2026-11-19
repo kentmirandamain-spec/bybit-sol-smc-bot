@@ -1,0 +1,16 @@
+# systemd unit - copy to /etc/systemd/system/smcbot.service and edit User/paths
+[Unit]
+Description=Bybit SOLUSDT SMC trading bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/bybit-sol-smc-bot
+ExecStart=/home/ubuntu/bybit-sol-smc-bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

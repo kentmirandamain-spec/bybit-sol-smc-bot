@@ -1,0 +1,98 @@
+# ---------------------------------------------------------------------------
+# Bybit SOLUSDT SMC bot configuration
+# API keys are NOT stored here: put them in .env (BYBIT_API_KEY / BYBIT_API_SECRET)
+# ---------------------------------------------------------------------------
+
+# SAFETY FLAGS -------------------------------------------------------------
+dry_run: true          # true = only log signals / would-be orders. Set false for LIVE orders.
+testnet: false         # true = use api-testnet.bybit.com (needs testnet API keys)
+# Env vars BOT_DRY_RUN / BOT_TESTNET (true/false) override these two values.
+
+symbol: SOLUSDT        # linear USDT perpetual
+category: linear
+
+htf_interval: 60       # higher timeframe (minutes) for bias / structure
+ltf_interval: 15       # lower timeframe (minutes) for entries
+ltf_bars: 1000         # closed LTF candles loaded each evaluation
+htf_bars: 500          # closed HTF candles loaded each evaluation
+poll_seconds: 20       # how often the loop wakes up
+
+# RISK ---------------------------------------------------------------------
+risk:
+  risk_usdt: 5.0               # fixed USDT risked per trade, regardless of balance
+  include_fees_in_risk: true   # shrink size so entry+exit fees are inside the 5 USDT
+  maker_fee: 0.0002            # Bybit non-VIP linear maker (limit entry)
+  taker_fee: 0.00055           # Bybit non-VIP linear taker (stop-loss exit)
+  leverage: 5                  # set via API on start; isolated margin
+  margin_mode: isolated        # isolated | keep  (keep = don't touch margin mode)
+  max_open_positions: 1        # the bot only ever holds one SOLUSDT position
+  max_daily_loss_usdt: 15      # stop opening new trades for the UTC day after this loss (0 = off)
+  max_trades_per_day: 6        # 0 = unlimited
+  max_consecutive_losses: 3    # 0 = off. Pause new entries for the rest of the UTC day
+  streak_risk_usdt: 0          # 0 = off. While losing, risk this much; never above risk_usdt and never above 5
+
+# NEWS ---------------------------------------------------------------------
+news_filter: false             # pause new entries around high-impact USD events
+news_pause_minutes: 30
+news_blackouts: ""             # manual UTC times, comma-separated: 2026-11-19 13:30
+
+# DASHBOARD / PC -----------------------------------------------------------
+dashboard_lan: false           # true = phones on this Wi-Fi. Requires DASHBOARD_PASSWORD.
+autostart_bot: false           # true = the dashboard starts the bot when it opens
+symbols: SOLUSDT               # comma-separated. BTCUSDT and ETHUSDT stay off until you add them.
+max_concurrent_positions: 2    # across all symbols. Daily loss limit stays global.
+
+# STRATEGY -----------------------------------------------------------------
+strategy:
+  swing_left: 3                # LTF fractal swing lookback (bars each side)
+  swing_right: 3
+  htf_swing_left: 3
+  htf_swing_right: 3
+  sweep_lookback: 100          # swings older than this (bars) are ignored for sweeps
+  sweep_max_age: 30            # CHoCH must come within N LTF bars after the sweep
+  require_choch: true          # true = CHoCH only; false = CHoCH or BOS
+  use_htf_bias: true           # only trade in HTF structure direction
+  entry_mode: ob               # ob | fvg | ob_or_fvg  (zone used for the limit entry)
+  stop_buffer_atr: 0.1         # extra stop distance beyond OB/sweep extreme, in ATR(14)
+  min_stop_pct: 0.25           # skip setups with stop closer than this % (fee drag)
+  max_stop_pct: 4.0            # skip setups with stop wider than this %
+  tp_mode: rr                  # rr | liquidity (nearest unswept opposing swing)
+  rr: 2.0                      # take profit R multiple (tp_mode rr)
+  min_rr: 1.5                  # liquidity mode: ignore targets closer than this
+  max_rr: 4.0                  # liquidity mode: cap target
+  entry_expiry_bars: 12        # cancel unfilled limit after N LTF bars
+  warmup_bars: 50
+  breakeven_at_r: 0            # 0 = off. 1 = move the stop to entry plus fees after +1R
+  trail_mode: off              # off | atr | structure
+  trail_at_r: 1.5              # start trailing only after this much open profit
+  trail_atr_mult: 1.0
+  partial_tp_pct: 0            # 0 = off. 50 = close half at partial_at_r, rest at the target
+  partial_at_r: 1.0
+
+# MARKET DATA --------------------------------------------------------------
+# bybit (default, same feed as execution). "okx" is a public fallback feed ONLY
+# for backtests / dry-run smoke tests from regions where Bybit's API is blocked.
+market_data_source: bybit
+
+logging:
+  file: logs/bot.log
+  level: INFO
+state_file: state/bot_state.json
+
+# LEARNING -----------------------------------------------------------------
+# Off until you apply a proposal from the dashboard. The score gate also stays
+# off until the journal has min_trades closed trades AND a walk-forward study
+# shows the cutoff helps on held-out weeks. Never auto-applies unless this
+# config is dry_run and auto_apply_dry_run is true.
+learning:
+  enabled: false
+  min_trades: 100
+  min_score: 0
+  min_bucket: 30
+  min_oos_trades: 20
+  oos_weeks: 4
+  max_filters: 3
+  l2: 1.0
+  auto_apply_dry_run: false
+  session_skip: ""         # Asia | London | NY | Off | empty. The daily learner may set this.
+  score_active: false      # true only after a study adopted a score cutoff

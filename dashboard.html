@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Grok Bot · SOL Futures</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 509.641'%3E%3Crect width='512' height='509.641' rx='96' fill='%230b0f15'/%3E%3Cpath fill='%23f4f7fb' d='M213.235 306.019l178.976-180.002v.169l51.695-51.763c-.924 1.32-1.86 2.605-2.785 3.89-39.281 54.164-58.46 80.649-43.07 146.922l-.09-.101c10.61 45.11-.744 95.137-37.398 131.836-46.216 46.306-120.167 56.611-181.063 14.928l42.462-19.675c38.863 15.278 81.392 8.57 111.947-22.03 30.566-30.6 37.432-75.159 22.065-112.252-2.92-7.025-11.67-8.795-17.792-4.263l-124.947 92.341zm-25.786 22.437l-.033.034L68.094 435.217c7.565-10.429 16.957-20.294 26.327-30.149 26.428-27.803 52.653-55.359 36.654-94.302-21.422-52.112-8.952-113.177 30.724-152.898 41.243-41.254 101.98-51.661 152.706-30.758 11.23 4.172 21.016 10.114 28.638 15.639l-42.359 19.584c-39.44-16.563-84.629-5.299-112.207 22.313-37.298 37.308-44.84 102.003-1.128 143.81z'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#07090d;--bg2:#0b0f15;--panel:#0f141c;--panel2:#131a24;--line:#1c2532;--line2:#263243;
+  --txt:#e6edf5;--mut:#7d8ba1;--dim:#5a6779;
+  --up:#16c784;--down:#ea3943;--acc:#10b981;--acc2:#34d399;--blue:#4c8dff;--amber:#f5a524;--violet:#a78bfa;
+  --r:12px;--font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","Segoe UI Mono",Consolas,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--txt);font:13.5px/1.45 var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.mut{color:var(--mut)}.dim{color:var(--dim)}
+
+/* layout */
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+aside{background:var(--bg2);border-right:1px solid var(--line);padding:18px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:18px}
+.brand{display:flex;align-items:center;gap:11px;padding:2px 6px 14px;border-bottom:1px solid var(--line)}
+.brand .t1{font-weight:750;font-size:15.5px;letter-spacing:.01em}.brand .t2{font-size:11.5px;color:var(--mut);letter-spacing:.06em;text-transform:uppercase}
+.mark{color:#f4f7fb;display:block}
+.wordmark{height:15px;width:auto;color:#f4f7fb;display:block;margin-top:4px}
+nav{display:flex;flex-direction:column;gap:3px}
+nav a{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:var(--mut);text-decoration:none;font-weight:560;cursor:pointer;user-select:none}
+nav a svg{width:17px;height:17px;flex:none;opacity:.9}
+nav a:hover{background:var(--panel);color:var(--txt)}
+nav a.on{background:linear-gradient(90deg,#10b98122,#10b98108);color:var(--txt);box-shadow:inset 2px 0 0 var(--acc)}
+.side-foot{margin-top:auto;font-size:11.5px;color:var(--dim);padding:0 6px;line-height:1.6}
+main{min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 22px;background:#07090dd9;backdrop-filter:blur(10px);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.005em}
+.top .sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;font-size:11.5px;font-weight:700;letter-spacing:.06em;border:1px solid transparent;white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.m-dry{color:#8db4ff;background:#4c8dff17;border-color:#4c8dff40}
+.m-test{color:#ffc35c;background:#f5a52417;border-color:#f5a52445}
+.m-live{color:#ff6b73;background:#ea394320;border-color:#ea394366;animation:pulse 1.8s infinite}
+.s-on{color:var(--acc2);background:#10b9811a;border-color:#10b98140}.s-on i{animation:blink 1.6s infinite}
+.s-off{color:var(--mut);background:#ffffff08;border-color:var(--line2)}
+.s-pause{color:#ffc35c;background:#f5a52414;border-color:#f5a52440}
+@keyframes pulse{50%{box-shadow:0 0 0 4px #ea394330}}@keyframes blink{50%{opacity:.25}}
+.hb{font-size:12px;color:var(--dim)}
+.content{padding:20px 22px 40px;max-width:1500px;width:100%}
+.page{display:none}.page.on{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:.4;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* cards */
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(5,minmax(0,1fr))}
+.ov{grid-template-columns:minmax(0,1fr) 340px;margin-top:14px;align-items:start}
+.card{background:linear-gradient(180deg,var(--panel),#0d1219);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.card h3{margin:0 0 12px;font-size:11.5px;font-weight:700;color:var(--mut);letter-spacing:.09em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.card h3 .sp{flex:1}
+.kpi{padding:14px 16px;position:relative;overflow:hidden}
+.kpi .l{font-size:11.5px;color:var(--mut);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.kpi .v{font:650 22px/1.2 var(--mono);margin-top:7px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .s{font-size:12px;color:var(--dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi::after{content:"";position:absolute;right:-30px;top:-30px;width:90px;height:90px;border-radius:50%;background:radial-gradient(#10b98114,transparent 70%)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.rows{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13px}
+.rows dt{color:var(--mut)}.rows dd{margin:0;text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.empty{color:var(--dim);font-size:13px;padding:6px 0}
+.tradebox{border:1px solid var(--line2);border-radius:10px;padding:11px 12px;background:var(--bg2)}
+.tradebox+.tradebox{margin-top:10px}
+.tradebox .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:650}
+.tag{font-size:10.5px;font-weight:800;letter-spacing:.07em;padding:3px 7px;border-radius:5px}
+.t-long{background:#16c78422;color:var(--up)}.t-short{background:#ea394322;color:var(--down)}
+.lv{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:12px}
+.lv div{background:var(--panel);border-radius:7px;padding:6px 8px}.lv span{display:block;color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+.lv b{font:600 13px var(--mono)}
+
+/* buttons & inputs */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--panel2);color:var(--txt);border:1px solid var(--line2);padding:8px 13px;border-radius:9px;cursor:pointer;font:600 13px var(--font);transition:.12s;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:#3a4a60;background:#182131}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn svg{width:15px;height:15px}
+.b-go{background:#10b981;border-color:#10b981;color:#03140e}.b-go:hover:not(:disabled){background:#22c993;border-color:#22c993}
+.b-stop{background:#ea394318;border-color:#ea394366;color:#ff8a90}.b-stop:hover:not(:disabled){background:#ea394330}
+.b-warn{background:#f5a52414;border-color:#f5a52455;color:#ffc35c}
+.b-pri{background:#4c8dff1c;border-color:#4c8dff66;color:#a9c7ff}
+.b-sm{padding:5px 9px;font-size:12px;border-radius:7px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg{display:inline-flex;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:2px}
+.seg button{background:none;border:0;color:var(--mut);font:600 11.5px var(--font);padding:4px 9px;border-radius:6px;cursor:pointer}
+.seg button.on{background:var(--panel2);color:var(--txt)}
+select,input{background:var(--bg2);color:var(--txt);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font:13px var(--font);outline:none;width:100%}
+select:focus,input:focus{border-color:#10b98199;box-shadow:0 0 0 3px #10b98122}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--mut);font-weight:600}
+label.f small{font-weight:400;color:var(--dim)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.sgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.note{font-size:12px;color:var(--dim);margin-top:10px;line-height:1.55}
+.warnbox{border:1px solid #f5a52455;background:#f5a5240f;color:#ffd38a;border-radius:9px;padding:9px 11px;font-size:12.5px;margin-top:12px}
+.errbox{border:1px solid #ea394355;background:#ea394312;color:#ffadb1;border-radius:9px;padding:9px 11px;font-size:12.5px;margin-top:14px;display:none}
+
+/* chart */
+.charthead{flex-wrap:wrap;row-gap:8px}
+.chartwrap{position:relative;height:430px;margin:0 -4px}
+#chart{width:100%;height:100%;display:block;cursor:crosshair}
+#tvbox{position:absolute;inset:0}
+.chartwrap.mode-tv #chart,.chartwrap.mode-tv .ohlc{display:none}
+.chartwrap.mode-bot #tvbox{display:none}
+body[data-chart="tv"] #zoom,body[data-chart="tv"] #legend{display:none}
+body[data-chart="bot"] #tvnote{display:none}
+.ohlc{position:absolute;left:10px;top:6px;font:12px var(--mono);color:var(--mut);pointer-events:none;background:#0f141ccc;padding:3px 7px;border-radius:6px}
+.levels{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
+.lvrow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px}
+.lvrow b{font-weight:650}
+.desk-logo{height:18px;width:auto;color:#f4f7fb;flex:none}
+@media (max-width:860px){.desk-logo{display:none}}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--mut);margin-top:8px}
+.legend span::before{content:"";display:inline-block;width:14px;height:2px;margin-right:6px;vertical-align:middle;background:var(--c)}
+
+/* table */
+.tbl{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:62vh}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{position:sticky;top:0;background:var(--panel2);color:var(--mut);font-weight:650;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:9px 10px;border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}th.n{text-align:right}
+tbody tr:hover{background:#ffffff05}
+tr.loss td{background:#ea394314}
+.st{font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:5px;text-transform:uppercase}
+.st-win{background:#16c78420;color:var(--up)}.st-loss{background:#ea394320;color:var(--down)}.st-open{background:#4c8dff22;color:#9dbfff}
+.st-pending{background:#f5a52420;color:#ffc35c}.st-other{background:#ffffff0d;color:var(--mut)}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.toolbar select{width:auto}
+
+pre.log{margin:0;background:#05070a;border:1px solid var(--line);border-radius:10px;padding:12px 14px;height:66vh;overflow:auto;font:12px/1.6 var(--mono);white-space:pre-wrap;word-break:break-word;color:#b7c3d3}
+pre.log .e{color:#ff7b82}pre.log .w{color:#ffc35c}pre.log .ok{color:var(--acc2)}pre.log .ts{color:var(--dim)}
+pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:10px;padding:12px 14px;max-height:420px;overflow:auto;font:12px/1.55 var(--mono);white-space:pre;color:#b7c3d3}
+
+/* toast & modal */
+#toasts{position:fixed;right:18px;bottom:18px;z-index:100;display:flex;flex-direction:column;gap:8px;max-width:min(380px,calc(100vw - 36px))}
+.toast{background:var(--panel2);border:1px solid var(--line2);border-left:3px solid var(--acc);border-radius:10px;padding:11px 14px;font-size:13px;box-shadow:0 10px 30px #0008;animation:tin .2s ease}
+.toast.bad{border-left-color:var(--down)}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.modal-bg{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:90;padding:18px}
+.modal-bg.on{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line2);border-radius:14px;max-width:440px;width:100%;padding:20px;box-shadow:0 30px 80px #000c}
+.modal h4{margin:0 0 8px;font-size:16px}.modal p{margin:0 0 12px;color:var(--mut)}
+.modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+
+/* mobile */
+.mnav{display:none}
+@media (max-width:1180px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.ov{grid-template-columns:1fr}}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}aside{display:none}
+  .top{padding:10px 14px}.content{padding:14px 12px 90px}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis .kpi:last-child{grid-column:1/-1}
+  .sgrid{grid-template-columns:1fr}.chartwrap{height:320px}
+  .mnav{display:flex;flex-direction:row;gap:0;position:fixed;bottom:0;left:0;right:0;z-index:30;background:#0b0f15f2;backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .mnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--mut);text-decoration:none;padding:4px 0;cursor:pointer;border-radius:8px;box-shadow:none;background:none}
+  .mnav a svg{width:19px;height:19px}.mnav a.on{color:var(--acc2)}
+  .hb{display:none}.mobile-brand{display:flex!important}.ohlc{font-size:10.5px;right:70px}.top h1{font-size:16px}
+}
+.mobile-brand{display:none;align-items:center;gap:8px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="grok" viewBox="0 0 512 509.641">
+      <path fill="currentColor" d="M213.235 306.019l178.976-180.002v.169l51.695-51.763c-.924 1.32-1.86 2.605-2.785 3.89-39.281 54.164-58.46 80.649-43.07 146.922l-.09-.101c10.61 45.11-.744 95.137-37.398 131.836-46.216 46.306-120.167 56.611-181.063 14.928l42.462-19.675c38.863 15.278 81.392 8.57 111.947-22.03 30.566-30.6 37.432-75.159 22.065-112.252-2.92-7.025-11.67-8.795-17.792-4.263l-124.947 92.341zm-25.786 22.437l-.033.034L68.094 435.217c7.565-10.429 16.957-20.294 26.327-30.149 26.428-27.803 52.653-55.359 36.654-94.302-21.422-52.112-8.952-113.177 30.724-152.898 41.243-41.254 101.98-51.661 152.706-30.758 11.23 4.172 21.016 10.114 28.638 15.639l-42.359 19.584c-39.44-16.563-84.629-5.299-112.207 22.313-37.298 37.308-44.84 102.003-1.128 143.81z"/>
+    </symbol>
+    <symbol id="grok-word" viewBox="0 0 88 33">
+      <path fill="currentColor" d="M76.4462 24.7077V8.41584H79.0216V19.1679L84.4685 12.9109H87.5908L82.6908 18.2731L87.6364 24.7077H84.5596L80.5539 19.1788L79.0216 19.1679V24.7077H76.4462Z"/>
+      <path fill="currentColor" d="M68.6362 24.9815C64.8074 24.9815 62.7335 22.2662 62.7335 18.7979C62.7335 15.3068 64.8074 12.6143 68.6362 12.6143C72.4878 12.6143 74.5389 15.3068 74.5389 18.7979C74.5389 22.2662 72.4878 24.9815 68.6362 24.9815ZM65.4228 18.7979C65.4228 21.4904 66.8813 22.8366 68.6362 22.8366C70.4139 22.8366 71.8497 21.4904 71.8497 18.7979C71.8497 16.1054 70.4139 14.7363 68.6362 14.7363C66.8813 14.7363 65.4228 16.1054 65.4228 18.7979Z"/>
+      <path fill="currentColor" d="M55.5659 24.7077V14.782L57.731 12.9109H62.3347V15.1014H58.1413V24.7077H55.5659Z"/>
+      <path fill="currentColor" d="M45.7187 25.009C40.8101 25.009 37.8834 21.4448 37.8834 16.5846C37.8834 11.6788 40.9146 8.02795 45.8145 8.02795C49.6433 8.02795 52.4466 9.99027 53.1075 13.6411H50.1675C49.7345 11.5647 48.0024 10.401 45.8145 10.401C42.282 10.401 40.7322 13.4586 40.7322 16.5846C40.7322 19.7106 42.282 22.7454 45.8145 22.7454C49.1875 22.7454 50.6689 20.3039 50.7828 18.2731H45.7006V15.9105H53.381L53.3684 17.1457C53.3684 21.7359 51.4978 25.009 45.7187 25.009Z"/>
+      <path fill="currentColor" d="M13.2371 21.0407L24.3186 12.8506C24.8619 12.4491 25.6384 12.6057 25.8973 13.2294C27.2597 16.5185 26.651 20.4712 23.9403 23.1851C21.2297 25.8989 17.4581 26.4941 14.0108 25.1386L10.2449 26.8843C15.6463 30.5806 22.2053 29.6665 26.304 25.5601C29.5551 22.3051 30.562 17.8683 29.6205 13.8673L29.629 13.8758C28.2637 7.99809 29.9647 5.64871 33.449 0.844576C33.5314 0.730667 33.6139 0.616757 33.6964 0.5L29.1113 5.09055V5.07631L13.2343 21.0436"/>
+      <path fill="currentColor" d="M10.9503 23.0313C7.07343 19.3235 7.74185 13.5853 11.0498 10.2763C13.4959 7.82722 17.5036 6.82767 21.0021 8.2971L24.7595 6.55998C24.0826 6.07017 23.215 5.54334 22.2195 5.17313C17.7198 3.31926 12.3326 4.24192 8.67479 7.90126C5.15635 11.4239 4.0499 16.8403 5.94992 21.4622C7.36924 24.9165 5.04257 27.3598 2.69884 29.826C1.86829 30.7002 1.0349 31.5745 0.36364 32.5L10.9474 23.0341"/>
+    </symbol>
+    <symbol id="i-ov" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 19V9m5 10V5m5 14v-7m5 7V8"/></symbol>
+    <symbol id="i-tr" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h10"/></symbol>
+    <symbol id="i-set" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></g></symbol>
+    <symbol id="i-bt" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 2M3.5 12a8.5 8.5 0 1 0 2.5-6M3 4v4h4"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 4h14v16H5zM8.5 9l2.5 2.5L8.5 14M13 14h3"/></symbol>
+    <symbol id="i-learn" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 19V5m0 14h16M8 16l3-4 2.5 2L17 8"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13l10.5-6.5z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <aside>
+    <div class="brand"><svg class="mark" width="36" height="36" viewBox="0 0 512 509.641" role="img" aria-label="Grok"><use href="#grok"/></svg><div><div class="t1">Grok Bot</div><div class="t2">SOL Futures</div><svg class="wordmark" viewBox="0 0 88 33" aria-hidden="true"><use href="#grok-word"/></svg></div></div>
+    <nav id="nav">
+      <a data-p="overview"><svg><use href="#i-ov"/></svg>Overview</a>
+      <a data-p="trades"><svg><use href="#i-tr"/></svg>Trades</a>
+      <a data-p="settings"><svg><use href="#i-set"/></svg>Settings</a>
+      <a data-p="backtest"><svg><use href="#i-bt"/></svg>Backtest</a>
+      <a data-p="learning"><svg><use href="#i-learn"/></svg>Learning</a>
+      <a data-p="logs"><svg><use href="#i-log"/></svg>Logs</a>
+    </nav>
+    <div class="side-foot">SOLUSDT · USDT perpetual<br>Smart Money Concepts<br><span id="sfmode">–</span><br><span id="appver">v<!--APP_VERSION--></span><br>Local only · 127.0.0.1</div>
+  </aside>
+
+  <main>
+    <div class="top">
+      <div class="mobile-brand"><svg class="mark" width="26" height="26" viewBox="0 0 512 509.641" aria-hidden="true"><use href="#grok"/></svg></div>
+      <svg class="desk-logo" viewBox="0 0 88 33" role="img" aria-label="Grok"><use href="#grok-word"/></svg>
+      <h1 id="ptitle">Overview</h1>
+      <span class="dim" id="verchip" style="font-size:12px;font-weight:650">v<!--APP_VERSION--></span>
+      <span id="mode" class="pill m-dry"><i></i>DRY RUN</span>
+      <span id="run" class="pill s-off"><i></i>STOPPED</span>
+      <span id="paused" class="pill s-pause" style="display:none"><i></i>ENTRIES PAUSED</span>
+      <span class="sp"></span>
+      <span class="hb" id="hb"></span>
+      <button class="btn b-go" id="bStart" onclick="startBot()"><svg><use href="#i-play"/></svg>Start bot</button>
+      <button class="btn b-stop" id="bStop" onclick="stopBot()"><svg><use href="#i-stop"/></svg>Stop</button>
+    </div>
+
+    <div class="content">
+      <!-- OVERVIEW -->
+      <section class="page" id="p-overview">
+        <div class="grid kpis">
+          <div class="card kpi"><div class="l">USDT balance</div><div class="v" id="k-bal">–</div><div class="s" id="k-bal-s">available</div></div>
+          <div class="card kpi"><div class="l">Today PnL</div><div class="v" id="k-pnl">–</div><div class="s" id="k-pnl-s">–</div></div>
+          <div class="card kpi"><div class="l">Win rate</div><div class="v" id="k-wr">–</div><div class="s" id="k-wr-s">–</div></div>
+          <div class="card kpi"><div class="l">Total R</div><div class="v" id="k-r">–</div><div class="s" id="k-r-s">–</div></div>
+          <div class="card kpi"><div class="l">Open position</div><div class="v" id="k-pos">None</div><div class="s" id="k-pos-s">–</div></div>
+        </div>
+        <div class="grid ov">
+          <div class="stack" style="min-width:0">
+          <div class="card">
+            <h3 class="charthead"><span>SOLUSDT</span><select id="symPick" style="width:auto"><option>SOLUSDT</option></select><span class="num" id="c-price" style="color:var(--txt);font-size:15px;letter-spacing:0"></span><span id="c-chg" class="num" style="letter-spacing:0"></span><span class="sp"></span>
+              <span class="seg" id="chartmode"><button type="button" data-m="tv" class="on">TradingView</button><button type="button" data-m="bot">Bot chart (with trade levels)</button></span>
+              <span class="seg" id="zoom"><button data-n="60">60</button><button data-n="120" class="on">120</button><button data-n="200">200</button><button data-n="300">All</button></span></h3>
+            <div class="levels" id="levels"><div class="empty">No pending order or open position.</div></div>
+            <div class="chartwrap mode-tv" id="chartbox"><div id="tvbox"></div><canvas id="chart"></canvas><div class="ohlc" id="ohlc"></div></div>
+            <div class="legend" id="legend"><span style="--c:var(--blue)">Entry</span><span style="--c:var(--down)">Stop loss</span><span style="--c:var(--up)">Take profit</span><span style="--c:#7d8ba1">Last price</span><span class="dim">▲▼ fills · ● exits</span><span class="dim" id="c-src"></span></div>
+            <div class="note" id="tvnote">TradingView shows <b>BYBIT:SOLUSDT.P</b> and needs internet (<b>s3.tradingview.com</b>). The free chart cannot draw your orders, so entry, stop and target stay in the list above. Times are Asia/Manila. The interval follows the bot's entry timeframe.</div>
+            <div class="note" id="tvstatus" style="display:none"></div>
+          </div>
+          <div class="card">
+            <h3><span>Recent trades</span><span class="sp"></span><a class="btn b-sm" onclick="go('trades')">View all</a></h3>
+            <div class="tbl" style="max-height:none"><table><thead><tr><th>Time</th><th>Side</th><th class=n>Entry</th><th class=n>Exit</th><th>Status</th><th class=n>PnL</th><th class=n>R</th></tr></thead><tbody id="recent"></tbody></table></div>
+          </div>
+          </div>
+          <div class="stack">
+            <div class="card">
+              <h3>Controls</h3>
+              <label class="f" style="margin-bottom:10px">Market data feed
+                <select id="ds"><option value="bybit">Bybit (normal)</option><option value="okx">OKX (dry-run testing only)</option></select></label>
+              <div class="btns">
+                <button class="btn b-warn" id="bPause" onclick="cmd(S.paused?'resume':'pause')">Pause entries</button>
+                <button class="btn" id="bCancel" onclick="confirmCancel()">Cancel pending</button>
+                <button class="btn b-stop" id="bClose" onclick="confirmClose()">Close position</button>
+                <button class="btn b-pri" onclick="once()">Check signals</button>
+              </div>
+              <div class="note" id="lastcmd">Pause blocks new entries only; open orders keep their exchange-side SL/TP.</div>
+            </div>
+            <div class="card">
+              <h3>Orders &amp; position</h3>
+              <div id="pend"></div><div id="posn"></div>
+            </div>
+            <div class="card">
+              <h3>Market &amp; bot</h3>
+              <dl class="rows">
+                <dt>HTF bias</dt><dd id="m-bias">–</dd>
+                <dt>Last candle</dt><dd id="m-bar">–</dd>
+                <dt>Trades today</dt><dd id="m-tc">–</dd>
+                <dt>Risk / trade</dt><dd id="m-risk">–</dd>
+                <dt>Leverage</dt><dd id="m-lev">–</dd>
+                <dt>Timeframes</dt><dd id="m-tf">–</dd>
+                <dt>Data feed</dt><dd id="m-feed">–</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="errbox" id="err"></div>
+      </section>
+
+      <!-- TRADES -->
+      <section class="page" id="p-trades">
+        <div class="grid kpis" style="margin-bottom:14px">
+          <div class="card kpi"><div class="l">Closed trades</div><div class="v" id="t-n">–</div><div class="s" id="t-n-s">–</div></div>
+          <div class="card kpi"><div class="l">Win rate</div><div class="v" id="t-wr">–</div><div class="s" id="t-wr-s">–</div></div>
+          <div class="card kpi"><div class="l">Total R</div><div class="v" id="t-r">–</div><div class="s">1R = risk per trade</div></div>
+          <div class="card kpi"><div class="l">Net PnL</div><div class="v" id="t-pnl">–</div><div class="s">after est. fees</div></div>
+          <div class="card kpi"><div class="l">Avg R / trade</div><div class="v" id="t-avg">–</div><div class="s" id="t-open">–</div></div>
+        </div>
+        <div class="card">
+          <div class="toolbar"><h3 style="margin:0">Trade history</h3><span class="sp" style="flex:1"></span>
+            <select id="fmode"><option value="">All modes</option><option value="DRY_RUN">Dry run</option><option value="TESTNET">Testnet</option><option value="LIVE">Live</option></select>
+            <select id="fstat"><option value="">All statuses</option><option value="closed">Closed (win/loss)</option><option value="active">Pending / open</option><option value="other">Cancelled / expired</option></select></div>
+          <div class="tbl"><table><thead><tr><th>Created</th><th>Mode</th><th>Side</th><th class=n>Entry</th><th class=n>Stop</th><th class=n>Target</th><th class=n>Qty</th><th>Status</th><th class=n>Exit</th><th class=n>PnL</th><th class=n>R</th><th>Setup</th></tr></thead><tbody id="trades"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="page" id="p-settings">
+        <form id="sform" onsubmit="saveSettings(event)">
+          <div class="sgrid">
+            <div class="card"><h3>Risk</h3><div class="fgrid">
+              <label class="f">Risk per trade (USDT)<input name="risk_usdt" type="number" step="0.1" min="0.5" max="1000"><small>Fixed loss if the stop is hit</small></label>
+              <label class="f">Leverage (x)<input name="leverage" type="number" step="1" min="1" max="50"><small>Margin only — risk stays fixed</small></label>
+              <label class="f">Daily loss limit (USDT)<input name="max_daily_loss_usdt" type="number" step="0.5" min="0"><small>0 = off</small></label>
+              <label class="f">Max trades per day<input name="max_trades_per_day" type="number" step="1" min="0" max="100"><small>0 = unlimited</small></label>
+              <label class="f">Pause after consecutive losses<input name="max_consecutive_losses" type="number" step="1" min="0" max="20"><small>0 = off. Rest of the UTC day.</small></label>
+              <label class="f">Risk during a losing streak (USDT)<input name="streak_risk_usdt" type="number" step="0.5" min="0" max="5"><small>0 = off. Never above 5, and never above the normal risk.</small></label>
+            </div></div>
+            <div class="card"><h3>Strategy</h3><div class="fgrid">
+              <label class="f">Take profit (R multiple)<input name="rr" type="number" step="0.1" min="0.5" max="10"></label>
+              <label class="f">Take-profit mode<select name="tp_mode"><option value="rr">Fixed R multiple</option><option value="liquidity">Opposing liquidity</option></select></label>
+              <label class="f">Entry zone<select name="entry_mode"><option value="ob">Order block</option><option value="fvg">Fair value gap</option><option value="ob_or_fvg">FVG if present, else OB</option></select></label>
+              <label class="f">Structure trigger<select name="require_choch"><option value="true">CHoCH only</option><option value="false">CHoCH or BOS</option></select></label>
+              <label class="f">Higher-timeframe bias<select name="use_htf_bias"><option value="true">Trade with HTF bias</option><option value="false">Ignore HTF bias</option></select></label>
+            </div></div>
+            <div class="card"><h3>Timeframes</h3><div class="fgrid">
+              <label class="f">Bias timeframe (HTF)<select name="htf_interval"></select></label>
+              <label class="f">Entry timeframe (LTF)<select name="ltf_interval"></select></label>
+            </div><div class="note">Entry timeframe must be smaller than and divide evenly into the bias timeframe.</div></div>
+            <div class="card"><h3>Stops &amp; partials</h3><div class="fgrid">
+              <label class="f">Move stop to entry after (R)<input name="breakeven_at_r" type="number" step="0.1" min="0" max="5"><small>0 = off. Fees are added so a scratch is flat.</small></label>
+              <label class="f">Trailing stop<select name="trail_mode"><option value="off">Off</option><option value="atr">ATR</option><option value="structure">15m swing</option></select></label>
+              <label class="f">Start trailing after (R)<input name="trail_at_r" type="number" step="0.1" min="0" max="10"></label>
+              <label class="f">ATR trail multiple<input name="trail_atr_mult" type="number" step="0.1" min="0.1" max="10"></label>
+              <label class="f">Close % at first target<input name="partial_tp_pct" type="number" step="5" min="0" max="90"><small>0 = off. Skipped if the split is below the minimum size.</small></label>
+              <label class="f">First target (R)<input name="partial_at_r" type="number" step="0.1" min="0.2" max="5"></label>
+            </div></div>
+            <div class="card"><h3>Trading mode</h3><div class="fgrid">
+              <label class="f">Dry run<select name="dry_run"><option value="true">On — no real orders</option><option value="false">Off — send orders</option></select></label>
+              <label class="f">Network<select name="testnet"><option value="false">Mainnet (real funds)</option><option value="true">Testnet</option></select></label>
+              <label class="f">USD news filter<select name="news_filter"><option value="false">Off</option><option value="true">Pause around high-impact events</option></select></label>
+              <label class="f">Minutes before and after<input name="news_pause_minutes" type="number" step="5" min="0" max="240"></label>
+            </div><div class="warnbox">Turning dry run off on mainnet means real money. You'll be asked to type <b>GO LIVE</b>.</div>
+            <div class="note" id="newsbox">News blackouts load when this page opens.</div>
+            <label class="f">Phone on the same Wi-Fi<select name="dashboard_lan"><option value="false">Off — this PC only</option><option value="true">On — requires a dashboard password</option></select></label>
+            <label class="f">Start the bot when the dashboard opens<select name="autostart_bot"><option value="false">No</option><option value="true">Yes, in the mode saved here</option></select></label>
+            <label class="f">Symbols<input name="symbols" placeholder="SOLUSDT"><small>Comma-separated. BTCUSDT and ETHUSDT are supported. Default is SOL only. 5 USDT risk each.</small></label>
+            <label class="f">Max open positions<input name="max_concurrent_positions" type="number" min="1" max="5" step="1"></label>
+            <div class="note" id="lanbox"></div>
+            <div class="toolbar"><button class="btn" type="button" onclick="testTelegram()">Send test Telegram message</button></div>
+            <div class="note" id="envover"></div></div>
+          </div>
+          <div class="card" style="margin-top:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div class="note" style="margin:0;flex:1;min-width:240px">Saved to <b>config.yaml</b> (backup: config.yaml.bak). Changes apply the next time the bot starts. API keys live only in your <b>.env</b> file and are never shown here.</div>
+            <button class="btn" type="button" onclick="fillSettings(DATA.settings)">Reset</button>
+            <button class="btn b-go" type="submit">Save settings</button>
+          </div>
+        </form>
+        <div class="card" id="about-card" style="margin-top:14px">
+          <h3>About &amp; updates</h3>
+          <dl class="rows" style="margin-bottom:4px">
+            <dt>Installed version</dt><dd id="about-ver">v<!--APP_VERSION--></dd>
+            <dt>Installed commit</dt><dd id="about-commit">–</dd>
+          </dl>
+          <div id="about-status" class="note" style="margin-top:8px">Not checked yet</div>
+          <div id="about-block" class="warnbox" style="display:none"></div>
+          <div class="toolbar" style="margin:12px 0 0">
+            <button class="btn b-pri" type="button" id="bChk" onclick="checkUpdates()">Check for updates</button>
+            <button class="btn b-go" type="button" id="bUpd" onclick="applyUpdate()" disabled>Update</button>
+            <button class="btn b-warn" type="button" id="bRb" onclick="rollbackUpdate()">Roll back</button>
+          </div>
+          <div class="note">Updates come from the <b>main</b> branch on GitHub. Git does not need to be installed. Your <b>.env</b>, <b>config.yaml</b> values, <b>logs/</b>, <b>state/</b> and <b>.venv</b> are kept. Replaced files are copied to <b>backups/</b> first. A private repository can use a read-only <b>GITHUB_TOKEN</b> in .env.</div>
+          <div id="about-new" style="display:none;margin-top:12px">
+            <h3 id="about-new-title">What's new</h3>
+            <div id="about-commits" class="note" style="margin-top:0"></div>
+            <pre class="out" id="about-log" style="max-height:220px;margin-top:8px;white-space:pre-wrap"></pre>
+          </div>
+          <pre class="out" id="upout" style="margin-top:12px">No update run yet.</pre>
+        </div>
+      </section>
+
+      <!-- BACKTEST -->
+      <section class="page" id="p-backtest">
+        <div class="card" style="margin-bottom:14px">
+          <h3>Run a backtest</h3>
+          <div class="toolbar" style="margin:0">
+            <label class="f" style="width:120px">Days<input id="btdays" type="number" value="90" min="7" max="365"></label>
+            <label class="f" style="width:200px">Data<select id="btsrc"><option value="bybit">Bybit public data</option><option value="okx">OKX public data</option></select></label>
+            <button class="btn b-go" id="bBt" onclick="backtest()" style="align-self:flex-end"><svg><use href="#i-play"/></svg>Run backtest</button>
+          </div>
+          <div class="note">Uses your saved settings. Typically 20–60 seconds. Past results do not guarantee future performance.</div>
+        </div>
+        <div class="grid kpis" id="btk" style="margin-bottom:14px;display:none">
+          <div class="card kpi"><div class="l">Trades</div><div class="v" id="b-n">–</div><div class="s" id="b-n-s">–</div></div>
+          <div class="card kpi"><div class="l">Win rate</div><div class="v" id="b-wr">–</div><div class="s" id="b-wl">–</div></div>
+          <div class="card kpi"><div class="l">Total R (net)</div><div class="v" id="b-r">–</div><div class="s" id="b-rg">–</div></div>
+          <div class="card kpi"><div class="l">Max drawdown</div><div class="v" id="b-dd">–</div><div class="s">in R, net</div></div>
+          <div class="card kpi"><div class="l">Net PnL</div><div class="v" id="b-pnl">–</div><div class="s" id="b-ls">–</div></div>
+        </div>
+        <div class="card"><h3>Output</h3><pre class="out" id="btout">No backtest run yet.</pre></div>
+      </section>
+
+      <!-- LEARNING -->
+      <section class="page" id="p-learning">
+        <div class="grid kpis" style="margin-bottom:14px">
+          <div class="card kpi"><div class="l">Closed trades</div><div class="v" id="ln-n">–</div><div class="s" id="ln-n-s">journal</div></div>
+          <div class="card kpi"><div class="l">Win rate</div><div class="v" id="ln-wr">–</div><div class="s" id="ln-wr-s">with 95% interval</div></div>
+          <div class="card kpi"><div class="l">Expectancy</div><div class="v" id="ln-exp">–</div><div class="s">avg R net of fees</div></div>
+          <div class="card kpi"><div class="l">Max drawdown</div><div class="v" id="ln-dd">–</div><div class="s">in R</div></div>
+          <div class="card kpi"><div class="l">Score gate</div><div class="v" id="ln-score">Off</div><div class="s" id="ln-score-s">until enough data</div></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <h3>Daily learning</h3>
+          <dl class="rows">
+            <dt>Last run</dt><dd id="dy-last">–</dd>
+            <dt>Next run</dt><dd id="dy-next">00:15 local time</dd>
+            <dt>Decision</dt><dd id="dy-dec">–</dd>
+          </dl>
+          <div class="note" id="dy-why">The daily pass keeps a rolling candle cache and tries at most two setting changes. It replaces the config only in dry run, and only when the last 30 days improve net R without a drawdown more than 20% worse, with at least 20 held-out trades. Live trading writes a proposal instead.</div>
+          <div class="sgrid" style="margin-top:12px">
+            <div><h3>Current out-of-sample</h3><div id="dy-now" class="empty">No daily run yet.</div></div>
+            <div><h3>Previous run</h3><div id="dy-prev" class="empty">–</div></div>
+          </div>
+          <div class="chartwrap" style="height:160px;margin-top:12px"><canvas id="dyeq"></canvas></div>
+          <div id="dyprop" style="margin-top:12px"></div>
+          <div class="toolbar">
+            <button class="btn b-go" id="bDayApply" type="button" onclick="applyDaily()" disabled>Apply daily proposal</button>
+            <button class="btn b-warn" id="bDayReject" type="button" onclick="rejectDaily()" disabled>Reject</button>
+            <select id="dyfile" style="width:auto;max-width:240px"></select>
+            <button class="btn" id="bDayBack" type="button" onclick="rollbackDaily()">Restore snapshot</button>
+          </div>
+          <div class="tbl" style="max-height:220px;margin-top:10px"><table><thead><tr><th>Date</th><th>Decision</th><th>Why</th></tr></thead><tbody id="dyhist"></tbody></table></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <h3>Cumulative R <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:500">closed tradable trades</span></h3>
+          <div class="chartwrap" style="height:180px"><canvas id="leq"></canvas></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <h3>Rebuild &amp; walk-forward</h3>
+          <div class="toolbar" style="margin:0">
+            <label class="f" style="width:120px">Days<input id="lndays" type="number" value="90" min="30" max="365"></label>
+            <label class="f" style="width:200px">Data<select id="lnsrc"><option value="bybit">Bybit public</option><option value="okx">OKX public</option></select></label>
+            <button class="btn b-go" id="bLearn" type="button" onclick="rebuildLearn()" style="align-self:flex-end">Rebuild journal &amp; retrain</button>
+          </div>
+          <div class="note" id="lndue">Replays history, writes <b>state/journal</b>, then checks filters and the score cutoff on the most recent held-out weeks. A rule is kept only if expectancy improves there and drawdown does not get worse. Live trading never applies this by itself.</div>
+          <pre class="out" id="lnout" style="margin-top:12px">No study run this session.</pre>
+        </div>
+        <div class="card" id="lnprop" style="margin-bottom:14px">
+          <h3>Pending proposal</h3>
+          <div id="lnpropb" class="empty">No study yet.</div>
+          <div class="toolbar" style="margin-top:12px">
+            <button class="btn b-go" id="bApply" type="button" onclick="applyLearn()" disabled>Apply</button>
+            <button class="btn b-warn" id="bReject" type="button" onclick="rejectLearn()" disabled>Reject</button>
+          </div>
+        </div>
+        <div class="sgrid">
+          <div class="card">
+            <h3>Losing conditions</h3>
+            <div class="note" style="margin-top:0">Buckets with at least 20 trades and negative expectancy. Highlighted rows are descriptive, not automatic filters.</div>
+            <div class="tbl" style="max-height:360px;margin-top:10px"><table><thead><tr><th>Feature</th><th>Bucket</th><th class=n>N</th><th class=n>Win rate</th><th class=n>Expectancy</th></tr></thead><tbody id="lnbuck"></tbody></table></div>
+          </div>
+          <div class="card">
+            <h3>Active filters &amp; skips</h3>
+            <div id="lnfilt" class="empty">No active filters. The bot takes every setup the strategy allows.</div>
+            <div class="tbl" style="max-height:240px;margin-top:10px"><table><thead><tr><th>When</th><th>Side</th><th>Why skipped</th></tr></thead><tbody id="lnskip"></tbody></table></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <h3>Score vs outcome</h3>
+          <div class="note" style="margin-top:0">Each bar is the share of winners in that score band, from the saved model. The gate stays off until Apply sets a minimum and the journal has enough trades.</div>
+          <div id="lnbands" style="margin-top:10px"></div>
+        </div>
+      </section>
+
+      <!-- LOGS -->
+      <section class="page" id="p-logs">
+        <div class="card">
+          <div class="toolbar"><h3 style="margin:0">Bot log <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:500">logs/bot.log · times in UTC</span></h3><span style="flex:1"></span>
+            <label class="mut" style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" id="follow" checked style="width:auto"> Follow</label></div>
+          <pre class="log" id="log">…</pre>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<nav class="mnav" id="mnav">
+  <a data-p="overview"><svg><use href="#i-ov"/></svg>Overview</a>
+  <a data-p="trades"><svg><use href="#i-tr"/></svg>Trades</a>
+  <a data-p="settings"><svg><use href="#i-set"/></svg>Settings</a>
+  <a data-p="backtest"><svg><use href="#i-bt"/></svg>Backtest</a>
+  <a data-p="learning"><svg><use href="#i-learn"/></svg>Learn</a>
+  <a data-p="logs"><svg><use href="#i-log"/></svg>Logs</a>
+</nav>
+<div id="toasts"></div>
+<div class="modal-bg" id="mbg"><div class="modal"><h4 id="mT"></h4><p id="mM"></p><div id="mX"></div>
+  <div class="acts"><button class="btn" onclick="mDone(false)">Cancel</button><button class="btn b-stop" id="mOk" onclick="mDone(true)">Confirm</button></div></div></div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id), val=id=>$(id).value;
+let S={}, DATA=null, CANDLES=null, settingsLoaded=false, mCb=null, page='overview', zoomN=120, hoverX=null, ABOUT=null;
+const INTERVALS=[1,3,5,15,30,60,120,240,360,720,1440];
+const ivName=m=>m>=1440?(m/1440)+'d':m>=60?(m/60)+'h':m+'m';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const isNum=x=>x!==null&&x!==undefined&&x!==''&&!isNaN(+x);
+const num=(x,d=2)=>isNum(x)?(+x).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}):'–';
+const sgnNum=(x,d=2,suf='')=>isNum(x)?((+x>0?'+':'')+num(x,d)+suf):'–';
+const cls=x=>!isNum(x)?'':(+x>0?'up':+x<0?'down':'');
+const parseT=iso=>{if(!iso)return NaN;return Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z')};
+const ltime=iso=>{const t=parseT(iso);return isNaN(t)?'–':new Date(t).toLocaleString([],{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'})};
+const PAGES={overview:'Overview',trades:'Trades',settings:'Settings',backtest:'Backtest',learning:'Learning',logs:'Logs'};
+
+/* ---------- navigation ---------- */
+function go(p){if(!PAGES[p])p='overview';page=p;
+  document.querySelectorAll('.page').forEach(e=>e.classList.toggle('on',e.id==='p-'+p));
+  document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
+  $('ptitle').textContent=PAGES[p];if(location.hash!=='#'+p)history.replaceState(null,'','#'+p);
+  if(p==='overview'){if(chartMode==='bot')requestAnimationFrame(drawChart);else mountTv()}
+  if(p==='logs')refreshLog();if(p==='learning')loadLearning();if(p==='settings'){loadNews();loadLan()}}
+document.querySelectorAll('#nav a,#mnav a').forEach(a=>a.onclick=()=>go(a.dataset.p));
+window.addEventListener('hashchange',()=>go(location.hash.slice(1)));
+
+/* ---------- toast / modal / api ---------- */
+function toast(m,bad){const t=document.createElement('div');t.className='toast'+(bad?' bad':'');t.textContent=m;$('toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='.3s';setTimeout(()=>t.remove(),300)},bad?7000:4200)}
+function modal(title,msg,extra,okText,cb){$('mT').textContent=title;$('mM').textContent=msg;$('mX').innerHTML=extra||'';$('mOk').textContent=okText||'Confirm';mCb=cb;$('mbg').classList.add('on');const i=$('mX').querySelector('input');if(i)setTimeout(()=>i.focus(),50)}
+function mDone(ok){$('mbg').classList.remove('on');const cb=mCb;mCb=null;if(cb)cb(ok)}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('mbg').classList.contains('on'))mDone(false)});
+async function api(path,body){const o=body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json','X-Dashboard':'1'},body:JSON.stringify(body)};
+  const r=await fetch(path,o);if(r.status===401){location.reload();throw new Error('Login required')}
+  const j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||('HTTP '+r.status));return j}
+async function post(path,body){try{const j=await api(path,body);toast(j.message||'Done');refresh()}catch(e){toast(e.message,true)}}
+function cmd(c,extra){post('/api/command',Object.assign({command:c},extra||{}))}
+
+/* ---------- commands ---------- */
+async function startBot(){const b=$('bStart');b.disabled=true;try{const j=await api('/api/bot/start',{data_source:val('ds')});toast(j.message)}catch(e){toast(e.message,true)}refresh()}
+function stopBot(){modal('Stop the bot?','The bot stops watching the market. Any order or position already on the exchange keeps its stop-loss and take-profit.','','Stop bot',ok=>{if(ok)post('/api/bot/stop',{})})}
+function confirmCancel(){const p=S.pending_order;modal('Cancel pending order?',p?`Cancel the ${p.side==='Buy'?'long':'short'} limit at ${p.entry}?`:'No pending order is shown right now.','','Cancel order',ok=>{if(ok)cmd('cancel_pending')})}
+function confirmClose(){const p=S.position;modal('Close position at market?',p?`Sends a market order to close your ${p.side==='Buy'?'LONG':'SHORT'} ${p.size} SOL position${p.paper?' (paper)':''}. This cannot be undone.`:'No open position is shown right now.','','Close at market',ok=>{if(ok)cmd('close_position',{confirm:true})})}
+async function pollJob(jid,out,btn,onDone){out.textContent='Running…';if(btn)btn.disabled=true;
+  try{for(let i=0;i<700;i++){await new Promise(r=>setTimeout(r,1500));const j=await api('/api/job?id='+jid);
+    if(j.output)out.textContent=j.output;
+    if(j.status!=='running'){if(!j.output)out.textContent='(no output)';if(onDone)onDone(j);if(j.status==='error')toast(j.message||'Finished with an error',true);else toast(j.message||'Finished');break}}}
+  catch(e){out.textContent=e.message}finally{if(btn)btn.disabled=false;refresh()}}
+async function once(){try{const j=await api('/api/once',{data_source:val('ds')});toast(j.message);if(j.job){go('backtest');$('btk').style.display='none';pollJob(j.job,$('btout'))}}catch(e){toast(e.message,true)}}
+async function backtest(){try{const j=await api('/api/backtest',{days:+val('btdays'),source:val('btsrc')});toast(j.message);$('btk').style.display='none';pollJob(j.job,$('btout'),$('bBt'),parseBacktest)}catch(e){toast(e.message,true)}}
+function parseBacktest(j){const o=j.output||'';const m=o.match(/\[net of est\. fees\] trades=(\d+) wins=(\d+) losses=(\d+) win_rate=([\d.]+)% total_R=([+-]?[\d.]+) avg_R=([+-]?[\d.]+) max_drawdown_R=([\d.]+)/);
+  const g=o.match(/\[gross \(no fees\)\].*?total_R=([+-]?[\d.]+)/);const p=o.match(/Net PnL at ([\d.]+) USDT\/trade: ([+-]?[\d.]+) USDT \| longs=(\d+) shorts=(\d+)/);const su=o.match(/Setups signalled: (\d+)/);
+  if(!m){$('btk').style.display='none';return}$('btk').style.display='';
+  $('b-n').textContent=m[1];$('b-n-s').textContent=su?su[1]+' setups signalled':'';
+  $('b-wr').textContent=m[4]+'%';$('b-wl').textContent=`${m[2]} wins · ${m[3]} losses`;
+  $('b-r').innerHTML=`<span class="${cls(m[5])}">${sgnNum(m[5],2,' R')}</span>`;$('b-rg').textContent=g?`gross ${sgnNum(g[1],2,' R')}`:'';
+  $('b-dd').innerHTML=`<span class="down">${num(m[7])} R</span>`;
+  if(p){$('b-pnl').innerHTML=`<span class="${cls(p[2])}">${sgnNum(p[2])}</span>`;$('b-ls').textContent=`${p[3]} longs · ${p[4]} shorts @ ${p[1]} USDT risk`}}
+
+function loadLan(){api('/api/lan').then(j=>{
+  $('lanbox').textContent=j.enabled?(j.urls.length?('Phone: '+j.urls.join('  ')):'LAN is on. Restart the dashboard if the address is missing.'):'LAN is off. A password in .env is required before it can be turned on. Restart the dashboard after saving.';
+}).catch(()=>{})}
+function testTelegram(){modal('Send a Telegram test?','Uses TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID from .env. Other chats are ignored.','','Send',async ok=>{
+  if(!ok)return;try{const j=await api('/api/telegram/test',{confirm:true});toast(j.message)}catch(e){toast(e.message,true)}})}
+function loadNews(){api('/api/news').then(j=>{
+  const lines=(j.windows||[]).map(w=>esc(w.start)+' – '+esc(w.end)+' · '+esc(w.title));
+  $('newsbox').textContent=(j.warning?j.warning+' ':'')+(lines.length?lines.join(' | '):'No blackout window on the calendar.');
+}).catch(e=>{$('newsbox').textContent=e.message})}
+
+/* ---------- learning ---------- */
+function rTxt(x){return x==null?'–':((x>0?'+':'')+Number(x).toFixed(3)+' R')}
+function drawEquity(points,canvasId){const cv=$(canvasId||'leq');if(!cv)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  if(!points||points.length<2){g.fillStyle='#5a6779';g.font='12px sans-serif';g.fillText('No closed trades in the journal yet',16,H/2);return}
+  const ys=points.map(p=>p.r);let lo=Math.min(0,...ys),hi=Math.max(0,...ys);if(hi-lo<1e-6){hi+=1;lo-=1}
+  const x=i=>8+(W-16)*i/(points.length-1),y=v=>10+(H-20)*(hi-v)/(hi-lo);
+  g.strokeStyle='#1c2532';g.beginPath();g.moveTo(8,y(0));g.lineTo(W-8,y(0));g.stroke();
+  g.strokeStyle='#34d399';g.lineWidth=1.6;g.beginPath();points.forEach((p,i)=>{const xx=x(i),yy=y(p.r);i?g.lineTo(xx,yy):g.moveTo(xx,yy)});g.stroke()}
+function loadLearning(){api('/api/learning').then(j=>{
+  const s=j.summary||{};$('ln-n').textContent=s.n??0;$('ln-n-s').textContent=(j.setups||0)+' setups journaled';
+  $('ln-wr').textContent=s.win_rate==null?'–':(100*s.win_rate).toFixed(1)+'%';
+  $('ln-wr-s').textContent=s.ci_low==null?'':(`95% CI ${(100*s.ci_low).toFixed(0)}–${(100*s.ci_high).toFixed(0)}%`);
+  $('ln-exp').innerHTML=`<span class="${cls(s.expectancy)}">${rTxt(s.expectancy)}</span>`;
+  $('ln-dd').textContent=s.max_dd==null?'–':s.max_dd.toFixed(2)+' R';
+  const gate=j.enabled&&j.min_score>0&&j.closed>=j.min_trades;
+  $('ln-score').textContent=gate?('≥ '+j.min_score):'Off';
+  $('ln-score-s').textContent=j.closed+' / '+j.min_trades+' closed trades';
+  $('lndue').innerHTML=j.due?'A weekly check is due. Rebuild when you want a fresh proposal. Live trading will not apply it on its own.':'The last study is under a week old. You can still rebuild.';
+  const rows=(j.buckets||[]).filter(b=>b.losing);
+  $('lnbuck').innerHTML=rows.length?rows.map(b=>`<tr class="loss"><td>${esc(b.feature)}</td><td>${esc(b.bucket)}</td><td class=n>${b.n}</td><td class=n>${b.win_rate==null?'–':(100*b.win_rate).toFixed(0)+'%'}</td><td class="n ${cls(b.expectancy)}">${rTxt(b.expectancy)}</td></tr>`).join(''):'<tr><td colspan=5 class="empty" style="padding:16px">No losing bucket with 20+ trades yet.</td></tr>';
+  const fl=j.filters||[];$('lnfilt').innerHTML=fl.length?fl.map(f=>`<div class="note" style="margin-top:6px">${esc(f.why||(f.feature+' '+f.op+' '+f.value))}</div>`).join(''):'<div class="empty">No active filters. The bot takes every setup the strategy allows.</div>';
+  const sk=j.skips||[];$('lnskip').innerHTML=sk.length?sk.slice().reverse().map(s=>`<tr><td>${esc(s.created||'')}</td><td>${esc(s.side||'')}</td><td>${esc(s.reason||'')}</td></tr>`).join(''):'<tr><td colspan=3 class="empty" style="padding:12px">No skipped setups.</td></tr>';
+  const bands={};(j.scores||[]).forEach(s=>{const k=Math.min(90,Math.floor(s.score/10)*10);(bands[k]=bands[k]||[]).push(s)});
+  $('lnbands').innerHTML=Object.keys(bands).sort((a,b)=>a-b).map(k=>{const g=bands[k],w=g.filter(x=>x.win).length;const p=g.length?100*w/g.length:0;return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><span class="num dim" style="width:64px">${k}–${+k+9}</span><div style="flex:1;background:#1c2532;border-radius:6px;height:10px"><div style="width:${p}%;height:10px;border-radius:6px;background:#16c784"></div></div><span class="num">${w}/${g.length}</span></div>`}).join('')||'<div class="empty">No model scores yet.</div>';
+  const p=j.proposal;const box=$('lnpropb');
+  if(!p){box.className='empty';box.textContent='No study yet.'}
+  else{box.className='';const b=p.baseline_oos||{},f=p.filtered_oos||{},m=p.model_oos||{};
+    box.innerHTML=`<div>${esc(p.why||'')}</div><div class="note">${esc(p.note||'')}</div>
+      <dl class="rows" style="margin-top:10px"><dt>Held-out baseline</dt><dd>${b.n??'–'} · ${_fmtStat(b)}</dd>
+      <dt>With filters</dt><dd>${p.adopt_filters?(f.n+' · '+_fmtStat(f)):'not adopted'}</dd>
+      <dt>With score</dt><dd>${p.adopt_score?(m.n+' · '+_fmtStat(m)):'not adopted'}</dd>
+      <dt>Status</dt><dd>${esc(p.status||'')}</dd></dl>`;}
+  const pending=p&&p.status==='pending'&&p.adoptable;$('bApply').disabled=!pending;$('bReject').disabled=!(p&&p.status==='pending');
+  const d=j.daily||{};
+  $('dy-last').textContent=d.last_run?new Date(d.last_run*1000).toLocaleString():'never';
+  $('dy-next').textContent=d.next_run||'00:15 local time';
+  $('dy-dec').textContent=d.last_decision||(d.due?'due':'–');
+  if(d.last_reason)$('dy-why').textContent=d.last_reason;
+  const fmt=s=>!s||s.n==null?'no metrics':`${s.n} trades · win ${s.win_rate==null?'–':(100*s.win_rate).toFixed(0)+'%'} · ${rTxt(s.expectancy)} · total ${rTxt(s.total_r)} · DD ${s.max_dd==null?'–':Number(s.max_dd).toFixed(2)+'R'}`;
+  $('dy-now').textContent=fmt(d.oos);
+  $('dy-prev').textContent=d.previous?((d.previous.decision||'')+' · '+fmt(d.previous.oos)):'No earlier run.';
+  const dp=d.proposal||{};
+  $('dyprop').innerHTML=dp.status==='pending'?`<div class="warnbox">${esc(dp.reason||'')}<div class="note">${(dp.changes||[]).map(c=>esc(c.param+' '+c.from+' → '+c.to)).join('<br>')}</div></div>`:'';
+  $('bDayApply').disabled=dp.status!=='pending';$('bDayReject').disabled=dp.status!=='pending';
+  $('dyfile').innerHTML=(d.configs||[]).map(c=>`<option value="${esc(c.file)}">${esc(c.file)}</option>`).join('')||'<option value="">No snapshots</option>';
+  $('dyhist').innerHTML=(d.history||[]).slice().reverse().map(h=>`<tr><td>${esc(h.date||'')}</td><td>${esc(h.decision||'')}</td><td>${esc(h.reason||'')}</td></tr>`).join('')||'<tr><td colspan=3 class="empty" style="padding:12px">No daily runs yet.</td></tr>';
+  requestAnimationFrame(()=>{drawEquity(j.equity||[]);drawDailyEquity(d.oos_equity||[])});
+}).catch(e=>{$('lnout').textContent=e.message})}
+function drawDailyEquity(values){drawEquity((values||[]).map(r=>({r})),'dyeq')}
+function _fmtStat(s){if(!s||s.win_rate==null)return '–';return `${(100*s.win_rate).toFixed(0)}% win · ${rTxt(s.expectancy)} · DD ${s.max_dd==null?'–':s.max_dd.toFixed(2)+'R'}`}
+function rebuildLearn(){modal('Rebuild the learning journal?','This downloads public candles, replays the strategy and writes a proposal. It does not change config unless dry-run auto-apply is on in config.yaml.','','Rebuild',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/rebuild',{confirm:true,days:+val('lndays'),source:val('lnsrc')});toast(j.message);pollJob(j.job,$('lnout'),$('bLearn'),()=>loadLearning())}catch(e){toast(e.message,true)}})}
+function applyLearn(){modal('Apply this learning proposal?','Turns learning on in config.yaml and saves the filters. A copy of the current config is kept under backups/. Restart the bot afterwards. Live mode will not do this by itself.','','Apply',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/apply',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+function rejectLearn(){modal('Reject this proposal?','The proposal is marked rejected. config.yaml stays as it is.','','Reject',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/reject',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+function applyDaily(){modal('Apply the daily proposal?','This replaces config.yaml with the candidate. A snapshot of both files is kept under state/learning/configs. In dry run the bot reloads it on the next bar.','','Apply',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/daily-apply',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+function rejectDaily(){modal('Reject the daily proposal?','config.yaml stays as it is.','','Reject',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/daily-reject',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+function rollbackDaily(){const file=val('dyfile');if(!file){toast('No snapshot to restore',true);return}
+  modal('Restore this config snapshot?','Writes '+file+' over config.yaml. The file you have now is saved as a new snapshot first.','','Restore',async ok=>{
+    if(!ok)return;try{const j=await api('/api/learning/rollback-config',{confirm:true,file});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+
+/* ---------- updates ---------- */
+function paintAbout(a){if(!a)return;ABOUT=a;
+  const ver='v'+(a.version||'unknown');
+  ['appver','verchip'].forEach(id=>{const el=$(id);if(el)el.textContent=ver});
+  if($('about-ver'))$('about-ver').textContent=ver;
+  if($('about-commit'))$('about-commit').textContent=a.commit?String(a.commit).slice(0,12):'not recorded yet';
+  const blk=$('about-block');
+  if(blk){if(a.blocked){blk.style.display='block';blk.textContent=a.blocked}else blk.style.display='none'}
+  if($('bUpd')&&a.blocked)$('bUpd').disabled=true;
+  if($('bRb'))$('bRb').disabled=!!a.blocked||!(a.backups&&a.backups.length)}
+async function loadAbout(){try{paintAbout(await api('/api/about'))}catch(e){}}
+async function checkUpdates(){const b=$('bChk');if(b)b.disabled=true;$('about-status').textContent='Checking…';
+  try{const j=await api('/api/update/check',{});
+    if(j.blocked){$('about-block').style.display='block';$('about-block').textContent=j.blocked}
+    if(j.error){$('about-status').textContent=j.error;$('bUpd').disabled=true;toast(j.error,true);return}
+    if(!j.update_available){$('about-status').textContent='Up to date · v'+j.local_version;$('bUpd').disabled=true;$('bUpd').textContent='Update';toast('You are on the latest version')}
+    else{const label=j.local_version!==j.remote_version?('Update available · v'+j.remote_version):('New commits on main · v'+j.remote_version);
+      $('about-status').textContent=label;$('bUpd').disabled=!!j.blocked;$('bUpd').textContent='Update to v'+j.remote_version}
+    const commits=j.commits||[];const show=!!(j.update_available&&(commits.length||j.changelog));
+    $('about-new').style.display=show?'block':'none';
+    $('about-new-title').textContent="What's new";
+    $('about-commits').innerHTML=commits.map(c=>`<div><span class="num dim">${esc((c.date||'').replace('T',' ').replace('Z',''))}</span> <span class="num">${esc(c.sha)}</span> ${esc(c.message)}</div>`).join('')||'<div class="dim">No commit messages returned.</div>';
+    $('about-log').textContent=j.changelog||'(no changelog text)';
+    loadAbout()}
+  catch(e){$('about-status').textContent=e.message;toast(e.message,true)}
+  finally{if(b)b.disabled=false}}
+function applyUpdate(){if(ABOUT&&ABOUT.blocked){toast(ABOUT.blocked,true);return}
+  modal('Update from GitHub?','The main branch will replace program files in this folder. Your .env, config.yaml values, logs, state and .venv stay. Replaced files are saved under backups/ so you can roll back. If the bot is running with an open position or a pending order, the update is refused until you stop it.','','Update',async ok=>{
+    if(!ok)return;try{const j=await api('/api/update/apply',{confirm:true});toast(j.message||'Update started');
+      pollJob(j.job,$('upout'),$('bUpd'),job=>{if(job.restarting){toast('Restarting the dashboard…');setTimeout(()=>location.reload(),4500)}else loadAbout()})}
+    catch(e){toast(e.message,true)}})}
+function rollbackUpdate(){const b=ABOUT&&ABOUT.backups&&ABOUT.backups[0];
+  if(!b){toast('No backup to roll back to',true);return}
+  if(ABOUT&&ABOUT.blocked){toast(ABOUT.blocked,true);return}
+  modal('Roll back the last update?','Restores program files from backup '+b.id+' (v'+(b.from_version||'?')+' before that update). Your .env, logs, state and .venv stay.','','Roll back',async ok=>{
+    if(!ok)return;try{const j=await api('/api/update/rollback',{confirm:true,backup:b.id});toast(j.message||'Rollback started');
+      pollJob(j.job,$('upout'),$('bRb'),()=>loadAbout())}catch(e){toast(e.message,true)}})}
+
+/* ---------- settings ---------- */
+function fillSettings(s){const f=$('sform');for(const n of ['htf_interval','ltf_interval'])f[n].innerHTML=INTERVALS.map(m=>`<option value="${m}">${ivName(m)}</option>`).join('');
+  for(const [k,v] of Object.entries(s))if(f[k])f[k].value=String(v);
+  const eo=s._env_overrides||{};$('envover').textContent=Object.keys(eo).length?('⚠ Your .env overrides: '+Object.entries(eo).map(([k,v])=>k+'='+v).join(', ')+' — these win over this form.'):'';settingsLoaded=true}
+async function saveSettings(e){e.preventDefault();const f=$('sform');const body={};for(const el of f.elements)if(el.name)body[el.name]=el.value;
+  const cur=DATA.settings;const goesLive=body.dry_run==='false'&&body.testnet==='false';const wasLive=cur.dry_run===false&&cur.testnet===false;
+  const send=async()=>{try{const j=await api('/api/settings',body);toast(j.message);fillSettings(Object.assign({},j.settings,{_env_overrides:cur._env_overrides}));refresh()}catch(err){toast(err.message,true)}};
+  if(goesLive&&!wasLive)modal('Switch to LIVE trading?','Real orders with real money will be placed on Bybit mainnet the next time the bot starts. Type GO LIVE to confirm.','<input id="golive" placeholder="GO LIVE" autocomplete="off">','Enable live',ok=>{if(!ok)return;body.confirm=$('golive').value;send()});
+  else send()}
+
+/* ---------- render ---------- */
+function setMode(mode,alive){const m=$('mode');const lab=mode==='DRY_RUN'?'DRY RUN':mode;m.innerHTML=`<i></i>${lab}${alive?'':' · config'}`;m.className='pill '+(mode==='DRY_RUN'?'m-dry':mode==='TESTNET'?'m-test':'m-live');$('sfmode').textContent='Mode: '+lab}
+function tradeBox(kind,t,extra){const L=t.side==='Buy';return `<div class="tradebox"><div class="hd"><span class="tag ${L?'t-long':'t-short'}">${L?'LONG':'SHORT'}</span>${kind}<span style="flex:1"></span><span class="num mut">${esc(t.qty??t.size)} SOL</span></div>
+  <div class="lv"><div><span>Entry</span><b>${esc(t.entry)}</b></div><div><span>Stop</span><b class="down">${esc(t.stop??'–')}</b></div><div><span>Target</span><b class="up">${esc(t.tp??'–')}</b></div></div>${extra||''}</div>`}
+function render(){if(!DATA)return;const b=DATA.bot,st=DATA.settings;S=b;
+  const mode=b.alive&&b.mode?b.mode:(st.dry_run?'DRY_RUN':st.testnet?'TESTNET':'LIVE');setMode(mode,b.alive);
+  $('run').innerHTML=`<i></i>${b.alive?'RUNNING':'STOPPED'}`;$('run').className='pill '+(b.alive?'s-on':'s-off');$('paused').style.display=b.paused&&b.alive?'':'none';
+  $('hb').textContent=b.heartbeat&&b.alive?`Heartbeat ${Math.max(0,Math.round(b.heartbeat_age_s||0))}s ago`:(b.heartbeat?'Last seen '+ltime(b.heartbeat):'');
+  $('bStart').disabled=b.alive;$('bStop').disabled=!b.alive;$('ds').disabled=b.alive;if(b.alive&&b.data_source)$('ds').value=b.data_source;
+  ['bPause','bCancel','bClose'].forEach(i=>$(i).disabled=!b.alive);$('bPause').textContent=b.paused?'Resume entries':'Pause entries';
+  // KPIs
+  $('k-bal').textContent=isNum(b.balance_usdt)?num(b.balance_usdt):'–';$('k-bal-s').textContent=isNum(b.balance_usdt)?'USDT available':(b.alive&&b.dry_run?'needs API key (dry run)':'bot not running');
+  const lim=b.max_daily_loss_usdt??st.max_daily_loss_usdt;$('k-pnl').innerHTML=`<span class="${cls(b.today_pnl)}">${isNum(b.today_pnl)?sgnNum(b.today_pnl):'–'}</span>`;
+  $('k-pnl-s').textContent=`USDT · limit −${num(lim,0)}`;
+  const ms=DATA.stats_by_mode[mode]||DATA.stats;$('k-wr').textContent=ms.win_rate!=null?ms.win_rate+'%':'–';$('k-wr-s').textContent=`${ms.wins}W · ${ms.losses}L · ${mode==='DRY_RUN'?'dry run':mode.toLowerCase()}`;
+  $('k-r').innerHTML=`<span class="${cls(ms.total_r)}">${ms.closed?sgnNum(ms.total_r,2,' R'):'–'}</span>`;$('k-r-s').innerHTML=ms.closed?`<span class="${cls(ms.total_pnl)}">${sgnNum(ms.total_pnl)} USDT</span>`:'no closed trades';
+  const q=b.alive?b.position:null;
+  if(q){$('k-pos').innerHTML=`<span class="${q.side==='Buy'?'up':'down'}">${q.side==='Buy'?'LONG':'SHORT'}</span> <span style="font-size:15px">${esc(q.size)}</span>`;$('k-pos-s').innerHTML=`uPnL <span class="${cls(q.unrealized_pnl)}">${sgnNum(q.unrealized_pnl)} USDT</span>`}
+  else{$('k-pos').textContent='None';$('k-pos-s').textContent=b.alive&&b.pending_order?'limit order pending':'flat'}
+  // orders
+  const p=b.alive?b.pending_order:null;
+  $('pend').innerHTML=p?tradeBox('Limit order',p,`<div class="note" style="margin-top:7px">${esc(p.id)}</div>`):'<div class="empty">No pending order</div>';
+  $('posn').innerHTML=q?tradeBox('Position'+(q.paper?' · paper':''),q,`<div class="note" style="margin-top:7px">Unrealized PnL <b class="num ${cls(q.unrealized_pnl)}">${sgnNum(q.unrealized_pnl)} USDT</b></div>`):'<div class="empty">No open position</div>';
+  // market
+  const bias=b.htf_bias||'–';$('m-bias').innerHTML=`<span class="${bias==='BULLISH'?'up':bias==='BEARISH'?'down':''}">${esc(bias)}</span>`;
+  $('m-bar').textContent=b.last_bar||'–';$('m-tc').textContent=`${b.trades_today??0} / ${(b.max_trades_per_day??st.max_trades_per_day)||'∞'}`;
+  $('m-risk').textContent=`${num(b.risk_usdt??st.risk_usdt,2)} USDT`;$('m-lev').textContent=`${b.leverage??st.leverage}x isolated`;
+  $('m-tf').textContent=`${ivName(b.htf_interval??st.htf_interval)} bias · ${ivName(b.ltf_interval??st.ltf_interval)} entry`;$('m-feed').textContent=b.alive?(b.data_source||'–'):'–';
+  if(b.last_command)$('lastcmd').textContent=`Last: ${b.last_command.command} → ${b.last_command.result} (${ltime(b.last_command.at)})`;
+  let err='';if(b.alive&&b.last_error)err='Last error: '+b.last_error;if(!b.alive&&b.exit_code!=null&&b.exit_code!==0)err=`Bot exited with code ${b.exit_code}. Check the Logs tab.`;
+  $('err').textContent=err;$('err').style.display=err?'block':'none';
+  renderTrades();paintLevels();if(isNum(b.price))$('c-price').textContent=(+b.price).toFixed(3);
+  if(!settingsLoaded)fillSettings(st);
+  if(page==='overview'){if(chartMode==='bot')drawChart();else syncTv()}}
+const sc=s=>s==='win'?'st-win':s==='loss'?'st-loss':s==='open'?'st-open':s==='pending'?'st-pending':'st-other';
+function renderTrades(){const fm=val('fmode'),fs=val('fstat');
+  const tr=DATA.trades.filter(t=>(!fm||t.mode===fm)&&(!fs||(fs==='closed'?['win','loss','closed'].includes(t.status):fs==='active'?['pending','open'].includes(t.status):['cancelled','expired'].includes(t.status))));
+  const s=fm?DATA.stats_by_mode[fm]:DATA.stats;
+  $('t-n').textContent=s.closed;$('t-n-s').textContent=`${s.total} recorded`;$('t-wr').textContent=s.win_rate!=null?s.win_rate+'%':'–';$('t-wr-s').textContent=`${s.wins} wins · ${s.losses} losses`;
+  $('t-r').innerHTML=`<span class="${cls(s.total_r)}">${s.closed?sgnNum(s.total_r,2,' R'):'–'}</span>`;$('t-pnl').innerHTML=`<span class="${cls(s.total_pnl)}">${s.closed?sgnNum(s.total_pnl):'–'}</span>`;
+  $('t-avg').innerHTML=s.closed?`<span class="${cls(s.total_r)}">${sgnNum(s.total_r/s.closed,2,' R')}</span>`:'–';
+  $('t-open').textContent=`${DATA.trades.filter(t=>['pending','open'].includes(t.status)&&(!fm||t.mode===fm)).length} pending/open`;
+  $('recent').innerHTML=DATA.trades.slice(0,6).map(t=>`<tr><td>${ltime(t.created_at)}</td><td><span class="tag ${t.side==='Buy'?'t-long':'t-short'}">${t.side==='Buy'?'LONG':'SHORT'}</span></td><td class=n>${num(t.entry)}</td><td class=n>${num(t.exit_price)}</td><td><span class="st ${sc(t.status)}">${esc(t.status)}</span></td><td class="n ${cls(t.pnl_usdt)}">${sgnNum(t.pnl_usdt)}</td><td class="n ${cls(t.r)}">${sgnNum(t.r)}</td></tr>`).join('')||'<tr><td colspan=7 class="empty" style="text-align:center;padding:18px">No trades yet</td></tr>';
+  $('trades').innerHTML=tr.length?tr.map(t=>`<tr><td>${ltime(t.created_at)}</td><td class="mut">${esc(t.mode==='DRY_RUN'?'Dry run':t.mode)}</td><td><span class="tag ${t.side==='Buy'?'t-long':'t-short'}">${t.side==='Buy'?'LONG':'SHORT'}</span></td>
+    <td class=n>${num(t.entry)}</td><td class=n>${num(t.stop)}</td><td class=n>${num(t.tp)}</td><td class=n>${num(t.qty,1)}</td><td><span class="st ${sc(t.status)}">${esc(t.status)}</span></td>
+    <td class=n>${num(t.exit_price)}</td><td class="n ${cls(t.pnl_usdt)}">${sgnNum(t.pnl_usdt)}</td><td class="n ${cls(t.r)}">${sgnNum(t.r)}</td><td class="mut" title="${esc(t.reason)}">${esc((t.reason||'').slice(0,54))}</td></tr>`).join('')
+    :'<tr><td colspan=12 class="empty" style="padding:28px;text-align:center">No trades yet. Dry-run "would-be" trades appear here too.</td></tr>'}
+['fmode','fstat'].forEach(i=>$(i).onchange=()=>DATA&&renderTrades());
+
+/* ---------- chart ---------- */
+const TV_INTERVAL={1:'1',3:'3',5:'5',15:'15',30:'30',60:'60',120:'120',240:'240',360:'360',720:'720',1440:'D'};
+let chartMode='tv', tvWidget=null, tvIntervalOn=null, tvScript=null, tvGen=0;
+function savedChartMode(){try{return localStorage.getItem('smc-chart')==='bot'?'bot':'tv'}catch(e){return 'tv'}}
+function tvInterval(){const st=DATA&&DATA.settings||{}, b=S||{};const m=+(b.ltf_interval!=null?b.ltf_interval:st.ltf_interval!=null?st.ltf_interval:15);return TV_INTERVAL[m]||'15'}
+function levelRow(kind,t){if(!t)return '';const L=t.side==='Buy';
+  return `<div class="lvrow"><span class="tag ${L?'t-long':'t-short'}">${L?'LONG':'SHORT'}</span><span class="mut">${kind}</span><span>Entry <b>${esc(t.entry)}</b></span><span>Stop <b class="down">${esc(t.stop??'–')}</b></span><span>Target <b class="up">${esc(t.tp??'–')}</b></span><span class="mut">${esc(t.qty??t.size)} SOL</span></div>`}
+function paintLevels(){const b=S||{};const pend=b.alive?b.pending_order:null, pos=b.alive?b.position:null;
+  const html=levelRow('Pending',pend)+levelRow(pos&&pos.paper?'Position · paper':'Position',pos);
+  $('levels').innerHTML=html||'<div class="empty">Flat — no pending order or open position. Those prices are listed here because the TradingView chart cannot draw them.</div>'}
+function loadTvScript(){if(window.TradingView&&window.TradingView.widget)return Promise.resolve();
+  if(tvScript)return tvScript;
+  tvScript=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://s3.tradingview.com/tv.js';s.async=true;
+    const timer=setTimeout(()=>reject(new Error('TradingView took too long to load')),12000);
+    s.onload=()=>{clearTimeout(timer);(window.TradingView&&window.TradingView.widget)?resolve():reject(new Error('TradingView script loaded without a widget'))};
+    s.onerror=()=>{clearTimeout(timer);reject(new Error('TradingView script failed to load'))};
+    document.head.appendChild(s)}).catch(e=>{tvScript=null;throw e});
+  return tvScript}
+function mountTv(){const iv=tvInterval();
+  if(tvWidget&&tvIntervalOn===iv&&$('tvbox').querySelector('iframe'))return;
+  const gen=++tvGen, box=$('tvbox');
+  try{if(tvWidget&&tvWidget.remove)tvWidget.remove()}catch(e){}
+  tvWidget=null;box.innerHTML='';
+  loadTvScript().then(()=>{if(gen!==tvGen||chartMode!=='tv')return;tvIntervalOn=iv;
+    const sym=(document.getElementById('symPick')&&document.getElementById('symPick').value)||'SOLUSDT';
+    tvWidget=new TradingView.widget({autosize:true,symbol:'BYBIT:'+sym+'.P',interval:iv,timezone:'Asia/Manila',theme:'dark',style:'1',locale:'en',toolbar_bg:'#0f141c',backgroundColor:'#0f141c',gridColor:'rgba(230,237,245,0.06)',hide_side_toolbar:false,allow_symbol_change:false,save_image:false,enable_publishing:false,withdateranges:false,container_id:'tvbox'});
+    $('tvstatus').style.display='none';$('c-src').textContent=`TradingView · BYBIT:SOLUSDT.P · ${iv} · Asia/Manila`}).catch(e=>{
+    if(gen!==tvGen)return;
+    $('tvstatus').style.display='block';$('tvstatus').textContent=e.message+'. Showing the bot chart instead.';
+    toast(e.message+'. Showing the bot chart.',true);setChartMode('bot',false)})}
+function syncTv(){if(chartMode!=='tv')return;if(tvIntervalOn&&tvIntervalOn!==tvInterval())mountTv()}
+function setChartMode(mode,persist){chartMode=mode==='bot'?'bot':'tv';
+  if(persist){try{localStorage.setItem('smc-chart',chartMode)}catch(e){}}
+  document.body.dataset.chart=chartMode;
+  document.querySelectorAll('#chartmode button').forEach(b=>b.classList.toggle('on',b.dataset.m===chartMode));
+  $('chartbox').classList.toggle('mode-tv',chartMode==='tv');$('chartbox').classList.toggle('mode-bot',chartMode==='bot');
+  if(chartMode==='tv')mountTv();else{$('ohlc').style.display='';if(page==='overview')requestAnimationFrame(drawChart)}}
+document.querySelectorAll('#chartmode button').forEach(b=>b.onclick=()=>setChartMode(b.dataset.m,true));
+const cv=$('chart');
+function drawChart(){if(chartMode!=='bot'||!cv.offsetParent)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  const all=(CANDLES&&CANDLES.candles)||[];g.font='11px '+getComputedStyle(document.body).getPropertyValue('--mono');
+  if(!all.length){g.fillStyle='#5a6779';g.textAlign='center';g.fillText(CANDLES&&CANDLES.error?CANDLES.error:'Loading candles…',W/2,H/2);$('ohlc').style.display='none';return}
+  const c=all.slice(-zoomN),n=c.length,PR=66,PB=22,PT=10,cw=W-PR,ch=H-PB-PT,step=cw/n,bw=Math.max(1,Math.min(14,step*0.68));
+  // levels
+  const lines=[];const b=S||{};const pushL=(o,tag)=>{if(!o)return;[['entry','#4c8dff','Entry'],['stop','#ea3943','SL'],['tp','#16c784','TP']].forEach(([k,col,l])=>{if(isNum(o[k]))lines.push({p:+o[k],col,l:tag+' '+l})})};
+  if(b.alive){pushL(b.pending_order,'Pend');pushL(b.position,'Pos')}
+  let lo=Infinity,hi=-Infinity;c.forEach(k=>{lo=Math.min(lo,k[3]);hi=Math.max(hi,k[2])});
+  lines.forEach(l=>{if(l.p>lo-(hi-lo)*0.6&&l.p<hi+(hi-lo)*0.6){lo=Math.min(lo,l.p);hi=Math.max(hi,l.p)}});
+  const pad=(hi-lo)*0.06||1;lo-=pad;hi+=pad;const y=p=>PT+(hi-p)/(hi-lo)*ch,x=i=>i*step+step/2;
+  // grid
+  g.strokeStyle='#18202b';g.lineWidth=1;g.fillStyle='#5a6779';g.textAlign='left';g.textBaseline='middle';
+  const rng=hi-lo,mag=Math.pow(10,Math.floor(Math.log10(rng/5))),stp=[1,2,2.5,5,10].map(m=>m*mag).find(s=>rng/s<=6)||mag*10;
+  for(let p=Math.ceil(lo/stp)*stp;p<=hi;p+=stp){const yy=Math.round(y(p))+.5;g.beginPath();g.moveTo(0,yy);g.lineTo(cw,yy);g.stroke();g.fillText(p.toFixed(stp<0.1?3:2),cw+8,yy)}
+  g.textAlign='center';g.textBaseline='top';const every=Math.max(1,Math.ceil(90/step));
+  for(let i=0;i<n;i+=every){const xx=Math.round(x(i))+.5;if(xx<28||xx>cw-28)continue;g.beginPath();g.moveTo(xx,PT);g.lineTo(xx,PT+ch);g.stroke();
+    const d=new Date(c[i][0]);g.fillText(d.getHours()===0&&d.getMinutes()===0?d.toLocaleDateString([],{month:'short',day:'2-digit'}):d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),xx,PT+ch+6)}
+  // candles
+  c.forEach((k,i)=>{const [t,o,h,l,cl]=k,up=cl>=o,xx=x(i);g.strokeStyle=g.fillStyle=up?'#16c784':'#ea3943';
+    g.beginPath();g.moveTo(Math.round(xx)+.5,y(h));g.lineTo(Math.round(xx)+.5,y(l));g.stroke();
+    const yt=y(Math.max(o,cl)),hh=Math.max(1,Math.abs(y(o)-y(cl)));g.fillRect(xx-bw/2,yt,bw,hh)});
+  // trade markers
+  const t0=c[0][0],iv=(CANDLES.interval||15)*60000,idx=ts=>Math.floor((ts-t0)/iv);
+  (DATA?DATA.trades:[]).forEach(t=>{const L=t.side==='Buy';const ti=idx(parseT(t.opened_at||t.created_at));
+    if(ti>=0&&ti<n&&['open','win','loss','closed'].includes(t.status)){const xx=x(ti),yy=y(t.entry);g.fillStyle=L?'#16c784':'#ea3943';g.beginPath();
+      if(L){g.moveTo(xx,yy+3);g.lineTo(xx-6,yy+12);g.lineTo(xx+6,yy+12)}else{g.moveTo(xx,yy-3);g.lineTo(xx-6,yy-12);g.lineTo(xx+6,yy-12)}g.closePath();g.fill()}
+    const ei=idx(parseT(t.closed_at));if(isNum(t.exit_price)&&ei>=0&&ei<n){const xx=x(ei),yy=y(+t.exit_price);g.beginPath();g.arc(xx,yy,4.5,0,7);g.fillStyle=(t.pnl_usdt||0)>=0?'#16c784':'#ea3943';g.fill();g.strokeStyle='#07090d';g.lineWidth=1.5;g.stroke();g.lineWidth=1}});
+  // last price
+  const last=c[n-1][4];const lab=(yy,txt,col,fg)=>{g.fillStyle=col;g.fillRect(cw+1,yy-9,PR-2,18);g.fillStyle=fg||'#fff';g.textAlign='left';g.textBaseline='middle';g.fillText(txt,cw+6,yy)};
+  g.setLineDash([2,3]);g.strokeStyle='#7d8ba1';g.beginPath();g.moveTo(0,Math.round(y(last))+.5);g.lineTo(cw,Math.round(y(last))+.5);g.stroke();
+  // level lines
+  lines.forEach(l=>{const yy=Math.round(y(l.p))+.5;if(yy<PT||yy>PT+ch)return;g.setLineDash([6,4]);g.strokeStyle=l.col;g.lineWidth=1.2;g.beginPath();g.moveTo(0,yy);g.lineTo(cw,yy);g.stroke();
+    g.setLineDash([]);g.fillStyle=l.col;g.textAlign='left';g.textBaseline='bottom';g.fillText(l.l,6,yy-2);lab(yy,l.p.toFixed(2),l.col)});
+  g.setLineDash([]);g.lineWidth=1;lab(y(last),last.toFixed(2),last>=c[n-1][1]?'#16c784':'#ea3943','#04130d');
+  // crosshair
+  let k=c[n-1];if(hoverX!==null&&hoverX<cw){const i=Math.min(n-1,Math.max(0,Math.floor(hoverX/step)));k=c[i];g.strokeStyle='#ffffff26';g.setLineDash([3,3]);g.beginPath();g.moveTo(Math.round(x(i))+.5,PT);g.lineTo(Math.round(x(i))+.5,PT+ch);g.stroke();g.setLineDash([])}
+  const d=new Date(k[0]);$('ohlc').style.display='';
+  $('ohlc').innerHTML=`${d.toLocaleString([],{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'})} &nbsp;O <b>${k[1].toFixed(2)}</b> H <b>${k[2].toFixed(2)}</b> L <b>${k[3].toFixed(2)}</b> C <b class="${k[4]>=k[1]?'up':'down'}">${k[4].toFixed(2)}</b>`;
+  const first=all[Math.max(0,all.length-96)][1];const chg=(last-first)/first*100;
+  $('c-price').textContent=(isNum(b.price)&&b.alive?(+b.price):last).toFixed(3);$('c-chg').innerHTML=`<span class="${cls(chg)}">${sgnNum(chg,2,'%')}</span> <span class="dim">24h</span>`;
+  $('c-src').textContent=`${ivName(CANDLES.interval)} candles · ${CANDLES.source||''}${CANDLES.from==='bot'?' (bot feed)':''}`}
+cv.addEventListener('mousemove',e=>{hoverX=e.offsetX;drawChart()});cv.addEventListener('mouseleave',()=>{hoverX=null;drawChart()});
+cv.addEventListener('touchmove',e=>{const r=cv.getBoundingClientRect();hoverX=e.touches[0].clientX-r.left;drawChart()},{passive:true});
+document.querySelectorAll('#zoom button').forEach(bt=>bt.onclick=()=>{zoomN=+bt.dataset.n;document.querySelectorAll('#zoom button').forEach(x=>x.classList.toggle('on',x===bt));drawChart()});
+window.addEventListener('resize',()=>drawChart());
+
+/* ---------- polling ---------- */
+async function refresh(){try{DATA=await api('/api/status');render()}catch(e){$('hb').textContent='Dashboard offline?'}}
+async function refreshCandles(){try{const src=S.alive&&S.data_source?S.data_source:val('ds');CANDLES=await api('/api/candles?limit=300&source='+src);if(page==='overview')drawChart()}catch(e){}}
+async function refreshLog(){if(page!=='logs')return;try{const j=await api('/api/log?n=300');const el=$('log');
+  let lines=j.lines.length?j.lines:['(no log yet — start the bot)'];if(!S.alive&&S.exit_code&&j.console&&j.console.length)lines=lines.concat(['','--- console ---'],j.console);
+  el.innerHTML=lines.map(l=>{const m=l.match(/^(\S+ \S+ UTC) (\w+)\s+(.*)$/);if(!m)return esc(l);const c=m[2]==='ERROR'?'e':m[2]==='WARNING'?'w':/PLACED|WOULD PLACE/.test(m[3])?'ok':'';return `<span class="ts">${esc(m[1])}</span> <span class="${c}">${esc(m[2].padEnd(7))} ${esc(m[3])}</span>`}).join('\n');
+  if($('follow').checked)el.scrollTop=el.scrollHeight}catch(e){}}
+setChartMode(savedChartMode(),false);
+go(location.hash.slice(1)||'overview');
+refresh().then(refreshCandles);loadAbout();setInterval(refresh,3000);setInterval(refreshCandles,20000);setInterval(refreshLog,3000);
+</script>
+</body></html>

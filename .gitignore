@@ -1,0 +1,11 @@
+.env
+.venv/
+logs/
+state/
+__pycache__/
+*.csv
+config.yaml.bak
+*.bak
+*.tmp
+backtest_trades.csv
+backups/
