@@ -32,6 +32,7 @@ from dotenv import load_dotenv
 from pybit.exceptions import FailedRequestError, InvalidRequestError
 from pybit.unified_trading import HTTP
 
+import adaptive
 import learn
 import market_data
 import news
@@ -567,8 +568,44 @@ class Bot:
         self.rc = new["risk"]
         log.info("Dry run reloaded config.yaml for the next bar")
 
+    def _adaptive_choice(self):
+        """Latest closed 1h regime. Only called when adaptive_mode is on."""
+        c = self.cfg
+        if c.get("market_data_source") == "okx":
+            h1 = market_data.okx_klines(self.symbol, 60, 220)
+            h4 = market_data.okx_klines(self.symbol, 240, 120)
+        else:
+            h1 = market_data.bybit_klines(self.http, self.symbol, 60, 220, self.cat)
+            h4 = market_data.bybit_klines(self.http, self.symbol, 240, 120, self.cat)
+        return adaptive.choose_latest({60: h1, 240: h4})
+
     def evaluate(self):
         self._reload_dry_config()
+        stand_aside = False
+        if self.cfg.get("adaptive_mode"):
+            busy = any(t.get("mode") == self.mode and t.get("status") in ("pending", "open") for t in self.trades)
+            held = self.state.get("adaptive_pair") if busy else None
+            if held:
+                self.cfg["htf_interval"] = int(held["htf"])
+                self.cfg["ltf_interval"] = int(held["ltf"])
+                self.cfg["strategy"]["rr"] = float(held["rr"])
+                self.status["adaptive_regime"] = held.get("name")
+                log.info("Adaptive mode: position or order still open, holding %sm/%sm", held["htf"], held["ltf"])
+            else:
+                regime = self._adaptive_choice()
+                self.status["adaptive_regime"] = regime.name
+                if regime.pair is None:
+                    stand_aside = True
+                    self.state["adaptive_pair"] = None
+                    log.info("Adaptive mode: %s, standing aside (no new entry)", regime.name)
+                else:
+                    log.info("Adaptive mode: %s -> %sm bias / %sm entry, %.1fR",
+                             regime.name, regime.htf, regime.ltf, regime.rr)
+                    self.cfg["htf_interval"] = regime.htf
+                    self.cfg["ltf_interval"] = regime.ltf
+                    self.cfg["strategy"]["rr"] = regime.rr
+                    self.state["adaptive_pair"] = {
+                        "name": regime.name, "htf": regime.htf, "ltf": regime.ltf, "rr": regime.rr}
         ltf, htf = self.fetch()
         if len(ltf) < 200 or len(htf) < 50:
             log.warning("Not enough candles (ltf=%d htf=%d)", len(ltf), len(htf))
@@ -580,7 +617,7 @@ class Bot:
         bias = int(htf_trend[-1])
         close = float(ltf["close"].iloc[-1])
         bar_time = datetime.fromtimestamp(last_ts / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        pending = setups[-1] if setups and setups[-1].status == "pending" else None
+        pending = None if stand_aside else (setups[-1] if setups and setups[-1].status == "pending" else None)
         log.info("Evaluated closed %sm bar %s close=%.3f | HTF bias %s | setups in window=%d | pending=%s",
                  self.cfg["ltf_interval"], bar_time, close, {1: "BULLISH", -1: "BEARISH"}.get(bias, "NEUTRAL"),
                  len(setups), f"{pending.side} @ {pending.entry} SL {pending.stop} TP {pending.tp}" if pending else "none")
@@ -602,7 +639,9 @@ class Bot:
             self._dry_handle(pending, close)
         else:
             self._live_handle(pending, close)
-        self._sync_learn(setups)
+        # A skip regime did not choose these candles. Don't write them into the journal.
+        if not stand_aside:
+            self._sync_learn(setups)
         if not getattr(self, "_learn_due_logged", False) and learn.retrain_due(ROOT):
             log.info("Learning: a weekly walk-forward is due. Open the dashboard Learning tab, "
                      "or run: python learn.py --days 90")

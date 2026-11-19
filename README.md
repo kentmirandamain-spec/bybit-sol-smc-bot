@@ -24,10 +24,18 @@ SL and TP are attached to every order (exchange-side). One position/order at a t
 Optional daily loss limit (`max_daily_loss_usdt`) and max trades per day. Leverage (default 5x)
 and isolated margin are set via the API on start.
 
+`adaptive_mode` (default **false**) is an opt-in experiment. When it is on, each new entry
+uses the last closed 1h bar to stand aside in a range or a volatility spike, or to pick
+1h/15m (2R), 1h/5m (1.5R), or 4h/1h (2.5R). An open order or position keeps its pair until
+it closes. Risk stays 5 USDT and the 15 USDT daily loss cap still applies. Leave it off
+unless `reports/adaptive_backtest.md` says the out-of-sample result beat the fixed 1h/15m
+baseline. The flag does not change live learning: that stays proposal-only.
+
 ## Files
 | File | Purpose |
 |---|---|
 | `bot.py` | Live/dry-run bot loop (pybit v5) |
+| `adaptive.py` | Opt-in regime picker (`adaptive_mode: false` by default) |
 | `smc.py` | SMC indicators: swings, BOS/CHoCH, order blocks, FVGs, liquidity sweeps |
 | `strategy.py` | Entry model (shared by bot and backtest) |
 | `risk.py` | Fixed-USDT position sizing + tick/step rounding |
