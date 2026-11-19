@@ -36,6 +36,7 @@ import learn
 import market_data
 import risk
 import smc
+import trade_manage
 from strategy import run_strategy
 
 ROOT = Path(__file__).resolve().parent
@@ -283,6 +284,86 @@ class Bot:
     # ------------------------------------------------------------ guards ----
     def _today(self):
         return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    def _protect_open(self, price: float):
+        """Breakeven, trail, and partial close for the open position. Dry-run updates paper state."""
+        s = self.cfg["strategy"]
+        be_at = float(s.get("breakeven_at_r") or 0)
+        trail = str(s.get("trail_mode") or "off")
+        part_pct = float(s.get("partial_tp_pct") or 0)
+        if be_at <= 0 and trail == "off" and part_pct <= 0:
+            return
+        if self.dry:
+            pos = self.status.get("position")
+            if not pos:
+                return
+            self._protect_levels(pos, price, paper=True)
+            return
+        try:
+            pos = self.open_position()
+        except Exception as exc:
+            log.debug("protection position read failed: %s", exc)
+            return
+        if pos:
+            self._protect_levels(pos, price, paper=False)
+
+    def _protect_levels(self, pos: dict, price: float, paper: bool):
+        s = self.cfg["strategy"]
+        side = pos.get("side")
+        d = 1 if side == "Buy" else -1
+        try:
+            entry = float(pos.get("entry") or pos.get("avgPrice") or 0)
+            stop = float(pos.get("stop") or pos.get("stopLoss") or 0)
+            size = float(pos.get("size") or 0)
+        except (TypeError, ValueError):
+            return
+        if entry <= 0 or stop <= 0 or size <= 0:
+            return
+        initial = float(pos.get("initial_stop") or stop)
+        fav = trade_manage.favorable_r(d, entry, initial, price, price)
+        new_stop = stop
+        be_at = float(s.get("breakeven_at_r") or 0)
+        if be_at > 0 and fav >= be_at:
+            new_stop = trade_manage.tighten(d, new_stop, trade_manage.breakeven_stop(
+                entry, d, float(self.rc["maker_fee"]), float(self.rc["taker_fee"])))
+        if str(s.get("trail_mode") or "off") == "atr" and fav >= float(s.get("trail_at_r") or 1.5):
+            atr = abs(entry - initial)
+            new_stop = trade_manage.trail_stop(d, new_stop, price, price, atr, float(s.get("trail_atr_mult") or 1), None)
+        if abs(new_stop - stop) > 1e-9:
+            if paper:
+                pos["stop"] = new_stop
+                pos["initial_stop"] = initial
+            else:
+                self._push_stop(new_stop, pos.get("takeProfit"))
+        part = trade_manage.partial_qty(size, float(s.get("partial_tp_pct") or 0), self.rules.min_qty, self.rules.qty_step)
+        if part > 0 and not pos.get("partial_done") and fav >= float(s.get("partial_at_r") or 1):
+            if paper:
+                pos["partial_done"] = True
+                pos["size"] = round(size - part, 8)
+            else:
+                self._partial_close(side, part)
+                pos["partial_done"] = True
+
+    def _push_stop(self, stop: float, tp):
+        try:
+            fmt = lambda x: f"{float(x):.10f}".rstrip("0").rstrip(".")
+            kw = dict(category=self.cat, symbol=self.symbol, stopLoss=fmt(stop), positionIdx=0)
+            if tp not in (None, "", "0"):
+                kw["takeProfit"] = fmt(tp)
+            self.http.set_trading_stop(**kw)
+            log.info("Moved %s stop to %s", self.symbol, fmt(stop))
+        except Exception as exc:
+            log.warning("Could not move stop: %s", exc)
+
+    def _partial_close(self, side: str, qty: float):
+        close_side = "Sell" if side == "Buy" else "Buy"
+        try:
+            fmt = lambda x: f"{float(x):.10f}".rstrip("0").rstrip(".")
+            self.http.place_order(category=self.cat, symbol=self.symbol, side=close_side, orderType="Market",
+                                  qty=fmt(qty), reduceOnly=True, positionIdx=0)
+            log.info("Partial close %s %s", self.symbol, fmt(qty))
+        except Exception as exc:
+            log.warning("Partial close failed: %s", exc)
 
     def guards_ok(self) -> bool:
         if self.state.get("paused"):
@@ -731,6 +812,7 @@ class Bot:
                     if pos and pos.get("paper"):
                         d = 1 if pos["side"] == "Buy" else -1
                         pos["unrealized_pnl"] = round((p - pos["entry"]) * d * pos["size"], 4)
+                    self._protect_open(p)
             if not once:
                 self.write_status()
             time.sleep(tick)

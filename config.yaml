@@ -49,6 +49,12 @@ strategy:
   max_rr: 4.0                  # liquidity mode: cap target
   entry_expiry_bars: 12        # cancel unfilled limit after N LTF bars
   warmup_bars: 50
+  breakeven_at_r: 0            # 0 = off. 1 = move the stop to entry plus fees after +1R
+  trail_mode: off              # off | atr | structure
+  trail_at_r: 1.5              # start trailing only after this much open profit
+  trail_atr_mult: 1.0
+  partial_tp_pct: 0            # 0 = off. 50 = close half at partial_at_r, rest at the target
+  partial_at_r: 1.0
 
 # MARKET DATA --------------------------------------------------------------
 # bybit (default, same feed as execution). "okx" is a public fallback feed ONLY

@@ -20,8 +20,9 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
+import risk
 import smc
-from risk import round_stop_away
+import trade_manage
 
 
 @dataclass
@@ -42,6 +43,11 @@ class Setup:
     features: Optional[dict] = None
     mfe_r: Optional[float] = None
     mae_r: Optional[float] = None
+    initial_stop: Optional[float] = None
+    partial_fraction: float = 0.0
+    partial_r: float = 0.0
+    r_gross: Optional[float] = None
+    qty_ok_for_partial: bool = False
 
     @property
     def side(self) -> str:
@@ -55,6 +61,34 @@ class Setup:
         d = asdict(self)
         d["side"] = self.side
         return d
+
+
+def _manage_open(active: Setup, fav: float, high: float, low: float, atr: float, s: dict,
+                 swing_lows, swing_highs, t: int) -> None:
+    """Move the stop and optionally bank a partial. Never loosens the stop."""
+    d = active.direction
+    be_at = float(s.get("breakeven_at_r") or 0)
+    if be_at > 0 and fav >= be_at:
+        be = trade_manage.breakeven_stop(active.entry, d, float(s.get("maker_fee") or 0.0002),
+                                         float(s.get("taker_fee") or 0.00055))
+        active.stop = trade_manage.tighten(d, active.stop, be)
+    part_pct = float(s.get("partial_tp_pct") or 0)
+    part_at = float(s.get("partial_at_r") or 1.0)
+    if part_pct > 0 and not active.partial_fraction and fav >= part_at and active.qty_ok_for_partial:
+        active.partial_fraction = min(0.9, part_pct / 100.0)
+        active.partial_r = part_at
+    trail = str(s.get("trail_mode") or "off")
+    trail_at = float(s.get("trail_at_r") or 1.5)
+    if trail != "off" and fav >= trail_at:
+        structure = None
+        if trail == "structure":
+            pool = swing_lows if d > 0 else swing_highs
+            prices = [x.price for x in pool if x.confirm_idx <= t and ((d > 0 and active.stop < x.price < high) or
+                                                                       (d < 0 and low < x.price < active.stop))]
+            if prices:
+                structure = max(prices) if d > 0 else min(prices)
+        active.stop = trade_manage.trail_stop(d, active.stop, high, low, atr, float(s.get("trail_atr_mult") or 1.0),
+                                              structure if trail == "structure" else None)
 
 
 def htf_bias_for_ltf(ltf: pd.DataFrame, htf: pd.DataFrame, htf_trend: np.ndarray,
@@ -79,7 +113,10 @@ def run_strategy(ltf: pd.DataFrame, htf: pd.DataFrame, cfg: dict,
     Replay the strategy bar by bar over closed candles. Returns every setup with
     its simulated outcome. The live bot uses the last one if it is still 'pending'.
     """
-    s = cfg["strategy"]
+    s = dict(cfg["strategy"])
+    rc = cfg.get("risk") or {}
+    s["maker_fee"] = float(rc.get("maker_fee", 0.0002))
+    s["taker_fee"] = float(rc.get("taker_fee", 0.00055))
     ltf_min, htf_min = int(cfg["ltf_interval"]), int(cfg["htf_interval"])
 
     ltf_res = smc.analyze(ltf, s["swing_left"], s["swing_right"], s["sweep_lookback"])
@@ -122,15 +159,25 @@ def run_strategy(ltf: pd.DataFrame, htf: pd.DataFrame, cfg: dict,
                         active.status = "filled"
                         active.fill_idx = t
             if active.status == "filled":
+                if active.initial_stop is None:
+                    active.initial_stop = active.stop
+                risk0 = abs(active.entry - active.initial_stop) or active.risk_per_unit
+                # Stop is assumed to trigger before a target on the same candle.
                 hit_sl = (d > 0 and l[t] <= active.stop) or (d < 0 and h[t] >= active.stop)
                 hit_tp = (d > 0 and h[t] >= active.tp) or (d < 0 and l[t] <= active.tp)
                 if active.fill_idx == t:
-                    # Conservative: on the fill candle we can't know the intrabar order,
-                    # so only the stop is allowed to trigger.
                     hit_tp = False
-                if hit_sl:                       # conservative: SL first if both
-                    active.status, active.exit_idx, active.exit_price = "loss", t, active.stop
-                elif hit_tp:
+                if hit_sl:
+                    rem_r = ((active.stop - active.entry) * d / risk0) if risk0 else 0.0
+                    active.r_gross = trade_manage.blended_r(active.partial_fraction, active.partial_r, rem_r)
+                    active.status, active.exit_idx, active.exit_price = ("loss" if active.r_gross <= 0 else "win"), t, active.stop
+                elif not hit_tp:
+                    fav = trade_manage.favorable_r(d, active.entry, active.initial_stop, h[t], l[t])
+                    _manage_open(active, fav, h[t], l[t], float(a[t]) if a[t] == a[t] else 0.0, s, swing_lows, swing_highs, t)
+                    hit_tp = (d > 0 and h[t] >= active.tp) or (d < 0 and l[t] <= active.tp)
+                if active.status == "filled" and hit_tp:
+                    rem_r = ((active.tp - active.entry) * d / risk0) if risk0 else 0.0
+                    active.r_gross = trade_manage.blended_r(active.partial_fraction, active.partial_r, rem_r)
                     active.status, active.exit_idx, active.exit_price = "win", t, active.tp
             if active.status in ("expired", "invalidated", "win", "loss"):
                 active = None
@@ -180,24 +227,24 @@ def run_strategy(ltf: pd.DataFrame, htf: pd.DataFrame, cfg: dict,
                 entry = max(zone.bottom, c[t])
                 stop = max(ob.top, sw.extreme) + buf
             entry = _round_tick(entry, tick_size)
-            stop = round_stop_away(entry, stop, tick_size)
-            risk = abs(entry - stop)
-            if risk <= 0:
+            stop = risk.round_stop_away(entry, stop, tick_size)
+            dist = abs(entry - stop)
+            if dist <= 0:
                 continue
-            risk_pct = risk / entry * 100
+            risk_pct = dist / entry * 100
             if risk_pct < s["min_stop_pct"] or risk_pct > s["max_stop_pct"]:
                 continue
 
-            tp = entry + d * s["rr"] * risk
+            tp = entry + d * s["rr"] * dist
             if s["tp_mode"] == "liquidity":
                 pool = swing_highs if d > 0 else swing_lows
                 cands = [x.price for x in pool
                          if x.confirm_idx <= t and not x.broken and not x.swept
-                         and ((d > 0 and x.price > entry + s["min_rr"] * risk) or
-                              (d < 0 and x.price < entry - s["min_rr"] * risk))]
+                         and ((d > 0 and x.price > entry + s["min_rr"] * dist) or
+                              (d < 0 and x.price < entry - s["min_rr"] * dist))]
                 if cands:
                     tp = min(cands) if d > 0 else max(cands)
-                    tp = min(tp, entry + s["max_rr"] * risk) if d > 0 else max(tp, entry - s["max_rr"] * risk)
+                    tp = min(tp, entry + s["max_rr"] * dist) if d > 0 else max(tp, entry - s["max_rr"] * dist)
             tp = _round_tick(tp, tick_size)
 
             st = Setup(created_idx=t, created_ts=int(ts[t]), direction=d, entry=entry, stop=stop, tp=tp,
@@ -210,6 +257,12 @@ def run_strategy(ltf: pd.DataFrame, htf: pd.DataFrame, cfg: dict,
                            "fvg_top": None if fvg is None else float(fvg.top),
                            "fvg_bottom": None if fvg is None else float(fvg.bottom),
                        })
+            sized = risk.position_size(entry, stop, float(rc.get("risk_usdt", 5)), risk.InstrumentRules(),
+                                       float(rc.get("leverage", 5)), bool(rc.get("include_fees_in_risk", True)),
+                                       s["maker_fee"], s["taker_fee"])
+            part = trade_manage.partial_qty(sized.qty if sized.ok else 0, float(s.get("partial_tp_pct") or 0),
+                                            risk.InstrumentRules().min_qty, risk.InstrumentRules().qty_step)
+            st.qty_ok_for_partial = part > 0
             setups.append(st)
             active = st
             break

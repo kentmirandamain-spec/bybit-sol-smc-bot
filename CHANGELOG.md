@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Breakeven stop: after a configurable open profit (default off), the stop moves to entry plus fees. Optional ATR or 15m-swing trail after +1.5R. Dry-run, backtest, and live (Bybit `set_trading_stop`) share the rule.
+- Partial take-profit: close a configurable percent (default off) at the first target and leave the rest for the final target. The split is skipped when either piece would be below the exchange minimum. Risk stays capped at 5 USDT.
+
 ## 1.1.0 - 2026-11-19
 
 - Daily learning (`learn_daily.py`) keeps a rolling candle cache and retries a small neighborhood of settings, at most two changes at a time. It replaces `config.yaml` only while `dry_run` is true, and only when the last 30 days have at least 20 trades, higher net R after fees, and a drawdown no more than 20% worse. Live mode writes `state/learning/proposal.json` and waits for Apply. Snapshots go to `state/learning/configs/`, with a log at `state/learning/learning_log.jsonl`.

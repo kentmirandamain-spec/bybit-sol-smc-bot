@@ -313,6 +313,14 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
               <label class="f">Bias timeframe (HTF)<select name="htf_interval"></select></label>
               <label class="f">Entry timeframe (LTF)<select name="ltf_interval"></select></label>
             </div><div class="note">Entry timeframe must be smaller than and divide evenly into the bias timeframe.</div></div>
+            <div class="card"><h3>Stops &amp; partials</h3><div class="fgrid">
+              <label class="f">Move stop to entry after (R)<input name="breakeven_at_r" type="number" step="0.1" min="0" max="5"><small>0 = off. Fees are added so a scratch is flat.</small></label>
+              <label class="f">Trailing stop<select name="trail_mode"><option value="off">Off</option><option value="atr">ATR</option><option value="structure">15m swing</option></select></label>
+              <label class="f">Start trailing after (R)<input name="trail_at_r" type="number" step="0.1" min="0" max="10"></label>
+              <label class="f">ATR trail multiple<input name="trail_atr_mult" type="number" step="0.1" min="0.1" max="10"></label>
+              <label class="f">Close % at first target<input name="partial_tp_pct" type="number" step="5" min="0" max="90"><small>0 = off. Skipped if the split is below the minimum size.</small></label>
+              <label class="f">First target (R)<input name="partial_at_r" type="number" step="0.1" min="0.2" max="5"></label>
+            </div></div>
             <div class="card"><h3>Trading mode</h3><div class="fgrid">
               <label class="f">Dry run<select name="dry_run"><option value="true">On — no real orders</option><option value="false">Off — send orders</option></select></label>
               <label class="f">Network<select name="testnet"><option value="false">Mainnet (real funds)</option><option value="true">Testnet</option></select></label>

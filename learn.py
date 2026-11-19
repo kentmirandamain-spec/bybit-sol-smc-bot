@@ -305,9 +305,15 @@ def r_net_of(setup, maker: float, taker: float, risk_usdt: float, rules=None, le
     if setup.status not in ("win", "loss") or setup.exit_price is None or setup.risk_per_unit <= 0:
         return None, None, False
     rules = rules or risk.InstrumentRules()
-    sz = risk.position_size(setup.entry, setup.stop, float(risk_usdt), rules, float(leverage),
+    stop_for_size = setup.initial_stop or setup.stop
+    sz = risk.position_size(setup.entry, stop_for_size, float(risk_usdt), rules, float(leverage),
                             bool(include_fees), float(maker), float(taker))
-    r_gross = (setup.exit_price - setup.entry) * setup.direction / setup.risk_per_unit
+    risk_dist = abs(setup.entry - stop_for_size) or setup.risk_per_unit
+    if getattr(setup, "r_gross", None) is not None:
+        r_gross = float(setup.r_gross)
+        fee_r = (setup.entry * float(maker) + setup.exit_price * float(taker)) / risk_dist
+        return round(r_gross, 4), round(r_gross - fee_r, 4), True
+    r_gross = (setup.exit_price - setup.entry) * setup.direction / risk_dist
     if not sz.ok:
         return round(r_gross, 4), None, False
     fees = sz.qty * (setup.entry * float(maker) + setup.exit_price * float(taker))
