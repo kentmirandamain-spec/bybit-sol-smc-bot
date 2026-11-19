@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Drawdown circuit breaker: after N consecutive losses (default 3) the bot takes no new entries for the rest of the UTC day. An optional smaller risk applies during a losing streak and can never exceed 5 USDT or the configured risk.
+
 - Breakeven stop: after a configurable open profit (default off), the stop moves to entry plus fees. Optional ATR or 15m-swing trail after +1.5R. Dry-run, backtest, and live (Bybit `set_trading_stop`) share the rule.
 - Partial take-profit: close a configurable percent (default off) at the first target and leave the rest for the final target. The split is skipped when either piece would be below the exchange minimum. Risk stays capped at 5 USDT.
 

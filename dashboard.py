@@ -154,6 +154,8 @@ FIELDS = {   # key: (section, type, validator-description)
     "leverage": ("risk", int, (1, 50)),
     "max_daily_loss_usdt": ("risk", float, (0, 100000)),
     "max_trades_per_day": ("risk", int, (0, 100)),
+    "max_consecutive_losses": ("risk", int, (0, 20)),
+    "streak_risk_usdt": ("risk", float, (0, 5)),
     "rr": ("strategy", float, (0.5, 10)),
     "breakeven_at_r": ("strategy", float, (0, 5)),
     "trail_mode": ("strategy", str, ["off", "atr", "structure"]),

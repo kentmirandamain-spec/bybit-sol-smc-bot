@@ -365,6 +365,15 @@ class Bot:
         except Exception as exc:
             log.warning("Partial close failed: %s", exc)
 
+    def _alert(self, text: str):
+        sender = getattr(self, "alerter", None)
+        if not sender:
+            return
+        try:
+            sender(text)
+        except Exception:
+            log.debug("alert failed", exc_info=True)
+
     def guards_ok(self) -> bool:
         if self.state.get("paused"):
             log.info("Entries PAUSED (resume from the dashboard) - not opening new trades")
@@ -378,7 +387,12 @@ class Bot:
             pnl = self.todays_pnl()
             if pnl <= -ml:
                 log.warning("Daily loss limit hit (%.2f USDT <= -%.2f) - no new entries today (UTC)", pnl, ml)
+                self._alert(f"Daily loss limit hit ({pnl:.2f} USDT). No new entries today.")
                 return False
+        if trade_manage.circuit_blocked(self.trades, int(self.rc.get("max_consecutive_losses") or 0)):
+            log.warning("Circuit breaker: consecutive losses - no new entries for the rest of the UTC day")
+            self._alert("Circuit breaker: consecutive losses. No new entries for the rest of the UTC day.")
+            return False
         return True
 
     # ----------------------------------------------------------- journal ----
@@ -570,7 +584,10 @@ class Bot:
         return f"smc{st.created_ts}{'L' if st.direction > 0 else 'S'}"
 
     def _size(self, st, avail=None):
-        return risk.position_size(st.entry, st.stop, float(self.rc["risk_usdt"]), self.rules,
+        streak = trade_manage.loss_streak([t for t in self.trades if t.get("mode") == self.mode])
+        risk_usdt = trade_manage.capped_risk(float(self.rc["risk_usdt"]), streak,
+                                             float(self.rc.get("streak_risk_usdt") or 0))
+        return risk.position_size(st.entry, st.stop, risk_usdt, self.rules,
                                   float(self.rc["leverage"]), bool(self.rc.get("include_fees_in_risk", True)),
                                   float(self.rc["maker_fee"]), float(self.rc["taker_fee"]), avail)
 

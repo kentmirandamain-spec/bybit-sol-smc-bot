@@ -301,6 +301,8 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
               <label class="f">Leverage (x)<input name="leverage" type="number" step="1" min="1" max="50"><small>Margin only — risk stays fixed</small></label>
               <label class="f">Daily loss limit (USDT)<input name="max_daily_loss_usdt" type="number" step="0.5" min="0"><small>0 = off</small></label>
               <label class="f">Max trades per day<input name="max_trades_per_day" type="number" step="1" min="0" max="100"><small>0 = unlimited</small></label>
+              <label class="f">Pause after consecutive losses<input name="max_consecutive_losses" type="number" step="1" min="0" max="20"><small>0 = off. Rest of the UTC day.</small></label>
+              <label class="f">Risk during a losing streak (USDT)<input name="streak_risk_usdt" type="number" step="0.5" min="0" max="5"><small>0 = off. Never above 5, and never above the normal risk.</small></label>
             </div></div>
             <div class="card"><h3>Strategy</h3><div class="fgrid">
               <label class="f">Take profit (R multiple)<input name="rr" type="number" step="0.1" min="0.5" max="10"></label>
