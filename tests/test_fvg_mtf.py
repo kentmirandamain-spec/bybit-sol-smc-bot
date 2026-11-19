@@ -1,6 +1,7 @@
 """FVG multi-timeframe rules. No network."""
 from __future__ import annotations
 
+import math
 import unittest
 from pathlib import Path
 
@@ -132,6 +133,31 @@ class RuleTests(unittest.TestCase):
         cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
         res = fvg_mtf.replay(m5, h1, h1.iloc[0:0], cfg, sources="1h", buffer="fixed", min_rr=1)
         self.assertEqual(res.setups, [])
+
+    def test_fixed_r_cannot_aim_past_the_higher_timeframe_level(self):
+        # Long: 2R is closer than the swing, so the cap wins. A level inside 2R wins instead.
+        self.assertAlmostEqual(fvg_mtf.capped_target(+1, 100, 99, 110, 2), 102)
+        self.assertAlmostEqual(fvg_mtf.capped_target(+1, 100, 99, 101.4, 2), 101.4)
+        # Short: closer means the higher of the two prices below entry.
+        self.assertAlmostEqual(fvg_mtf.capped_target(-1, 100, 101, 90, 2), 98)
+        self.assertAlmostEqual(fvg_mtf.capped_target(-1, 100, 101, 99.2, 2), 99.2)
+        self.assertEqual(fvg_mtf.capped_target(+1, 100, 99, 110, None), 110)
+
+    def test_replay_cap_pulls_a_far_target_in_to_2r(self):
+        m5, h1 = _synthetic()
+        cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
+        capped = fvg_mtf.replay(m5, h1, h1.iloc[0:0], cfg, sources="1h", buffer="fixed",
+                                min_rr=1, rr_cap=2)
+        self.assertEqual(len(capped.setups), 1)
+        setup = capped.setups[0]
+        dist = abs(setup.entry - setup.stop)
+        self.assertAlmostEqual(setup.tp, round(math.floor((setup.entry + 2 * dist) / 0.01 + 1e-9) * 0.01, 10))
+        self.assertLess(setup.tp, setup.meta["htf_target"])
+        self.assertAlmostEqual(setup.meta["planned_rr"], 2.0, places=2)
+        tight = fvg_mtf.replay(m5, h1, h1.iloc[0:0], cfg, sources="1h", buffer="fixed",
+                               min_rr=1, rr_cap=0.5)
+        self.assertEqual(tight.setups, [])
+        self.assertEqual(tight.skipped_rr, 1)
 
     def test_a_later_bar_does_not_rewrite_the_signal(self):
         m5, h1 = _synthetic()

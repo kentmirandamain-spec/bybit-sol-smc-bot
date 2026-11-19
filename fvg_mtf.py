@@ -31,7 +31,9 @@ Rules, and the choices the wording left open:
   Swings are fractal (3, 3) and only count once their confirmation bar has
   closed. A level already traded on a closed 5m bar is not a target. No
   target, no trade. Planned R below 1 is a separate filter; the study also
-  reports the unfiltered set.
+  reports the unfiltered set. Passing ``rr_cap`` pulls the target in to that
+  many R when the higher-timeframe level is farther. The level is never
+  crossed. The bot does not pass a cap, so the flag-on path is unchanged.
 - The limit is placed after the CHoCH close and can fill only on a later
   bar. Same-bar stop beats same-bar target. The fill bar cannot take profit.
   Unfilled limits die after 12 bars, if an opposite CHoCH prints, or if price
@@ -41,6 +43,7 @@ Rules, and the choices the wording left open:
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -181,6 +184,22 @@ def buffer_amount(mode: str, extreme: float) -> float:
     if mode == "pct":
         return abs(extreme) * 0.0005
     raise ValueError(f"unknown buffer {mode}")
+
+
+def capped_target(direction: int, entry: float, stop: float, htf_level: float,
+                  rr_cap: float | None) -> float:
+    """Closer of the fixed-R price and the higher-timeframe level.
+
+    The higher-timeframe price is a ceiling for a long and a floor for a short.
+    A fixed R further away than that level is pulled in. A level further away
+    than the fixed R is not used. ``rr_cap`` of None leaves the level unchanged.
+    """
+    if rr_cap is None:
+        return float(htf_level)
+    fixed = entry + direction * float(rr_cap) * abs(entry - stop)
+    if direction > 0:
+        return min(fixed, float(htf_level))
+    return max(fixed, float(htf_level))
 
 
 def nearest_target(direction: int, entry: float, now: int, swings: list[SwingLevel],
@@ -332,7 +351,15 @@ def _build_setup(gap: Imbalance, t: int, now: int, direction: int, o, h, l, c, t
     if target is None:
         result.skipped_no_target += 1
         return None
-    tp = risk.round_price(target, 0.01)
+    raw_tp = capped_target(direction, entry, stop, target, opt.get("rr_cap"))
+    tick = 0.01
+    if opt.get("rr_cap") is None:
+        tp = risk.round_price(target, tick)
+    else:
+        # Toward the entry, so a tick cannot step past the higher-timeframe cap.
+        steps = raw_tp / tick
+        steps = math.floor(steps + 1e-9) if direction > 0 else math.ceil(steps - 1e-9)
+        tp = round(steps * tick, 10)
     if (direction > 0 and tp <= entry) or (direction < 0 and tp >= entry):
         result.skipped_no_target += 1
         return None
@@ -356,15 +383,23 @@ def _build_setup(gap: Imbalance, t: int, now: int, direction: int, o, h, l, c, t
             "ob_top": ob_top, "ob_bottom": ob_bottom,
             "fvg_top": gap.top, "fvg_bottom": gap.bottom,
             "planned_rr": round(planned, 4), "source_tf": gap.tf, "buffer": opt["buffer"],
+            "rr_cap": opt.get("rr_cap"), "htf_target": float(target),
             "ob_idx": j,
         },
     )
 
 
 def replay(m5: pd.DataFrame, h1: pd.DataFrame, h4: pd.DataFrame, cfg: dict, *,
-           sources: str | None = None, buffer: str | None = None, min_rr: float | None = None) -> ReplayResult:
-    """Walk closed 5m bars. Higher-timeframe gaps are visible only after they close."""
+           sources: str | None = None, buffer: str | None = None, min_rr: float | None = None,
+           rr_cap: float | None = None) -> ReplayResult:
+    """Walk closed 5m bars. Higher-timeframe gaps are visible only after they close.
+
+    ``rr_cap`` is optional. None keeps the original target, the nearest
+    higher-timeframe level. A number pulls that target in to this many R and
+    never aims past the level.
+    """
     opt = _opts(cfg, sources, buffer, min_rr)
+    opt["rr_cap"] = None if rr_cap is None else float(rr_cap)
     allowed = {"1h", "4h"} if opt["sources"] == "both" else {opt["sources"]}
     m5 = m5.sort_values("ts").drop_duplicates("ts").reset_index(drop=True)
     o = m5["open"].to_numpy(float)

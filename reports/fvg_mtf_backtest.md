@@ -91,3 +91,148 @@ The charts are the first out-of-sample win and the first out-of-sample loss unde
 **Recommendation: Do not install, including in dry run. Leave `strategy_variant: default`.**
 
 `strategy_variant` stays **default**. Entries stay 1h bias and 15m. Dry run stays on. Risk stays 5 USDT. Nothing in this report places an order.
+
+<!-- FVG_RR_CAP_BEGIN -->
+## Capped take-profit
+
+Same entries, stops, data, fees, and caps as the study above. The only change is the target: the closer of a fixed R and the nearest unmitigated 1h/4h swing or opposing gap. The higher-timeframe level is a cap and is never aimed past. If that capped target is under 1R the trade is dropped in the "min 1R" rows; the "no R filter" rows keep it. 1.5R is a reference. The pre-registered row, chosen before this run, is **1h+4h, 0.05%, 2R cap, min 1R**.
+
+The $0.05 and 0.05% buffers are both shown. They are close, and they are not the same trades.
+
+### Full 90 days
+
+| Variant | Trades | Win rate | Avg R | Total R | Max DD (R) |
+|---|---:|---:|---:|---:|---:|
+| 1h, $0.05, 1.5R cap, min 1R | 12 | 50.0% | -0.051 | -0.61 | 2.99 |
+| 1h, $0.05, 1.5R cap, no R filter | 12 | 50.0% | -0.051 | -0.61 | 2.18 |
+| 1h, 0.05%, 1.5R cap, min 1R | 12 | 50.0% | -0.043 | -0.51 | 2.99 |
+| 1h, 0.05%, 1.5R cap, no R filter | 12 | 50.0% | -0.042 | -0.51 | 2.11 |
+| 1h, $0.05, 2R cap, min 1R | 17 | 47.1% | +0.027 | +0.46 | 2.68 |
+| 1h, $0.05, 2R cap, no R filter | 17 | 47.1% | +0.028 | +0.47 | 2.68 |
+| 1h, 0.05%, 2R cap, min 1R | 18 | 44.4% | -0.026 | -0.47 | 2.75 |
+| 1h, 0.05%, 2R cap, no R filter | 18 | 44.4% | -0.026 | -0.47 | 2.67 |
+| 1h, $0.05, 3R cap, min 1R | 22 | 40.9% | +0.134 | +2.94 | 4.18 |
+| 1h, $0.05, 3R cap, no R filter | 22 | 40.9% | +0.134 | +2.94 | 4.18 |
+| 1h, 0.05%, 3R cap, min 1R | 22 | 40.9% | +0.137 | +3.01 | 4.19 |
+| 1h, 0.05%, 3R cap, no R filter | 22 | 40.9% | +0.137 | +3.01 | 4.19 |
+| 4h, $0.05, 1.5R cap, min 1R | 12 | 16.7% | -0.672 | -8.07 | 9.20 |
+| 4h, $0.05, 1.5R cap, no R filter | 12 | 16.7% | -0.672 | -8.07 | 9.20 |
+| 4h, 0.05%, 1.5R cap, min 1R | 12 | 16.7% | -0.671 | -8.05 | 9.18 |
+| 4h, 0.05%, 1.5R cap, no R filter | 12 | 16.7% | -0.671 | -8.05 | 9.18 |
+| 4h, $0.05, 2R cap, min 1R | 15 | 20.0% | -0.524 | -7.86 | 8.41 |
+| 4h, $0.05, 2R cap, no R filter | 15 | 20.0% | -0.524 | -7.86 | 8.41 |
+| 4h, 0.05%, 2R cap, min 1R | 15 | 20.0% | -0.520 | -7.80 | 8.35 |
+| 4h, 0.05%, 2R cap, no R filter | 15 | 20.0% | -0.520 | -7.80 | 8.35 |
+| 4h, $0.05, 3R cap, min 1R | 19 | 10.5% | -0.677 | -12.87 | 12.87 |
+| 4h, $0.05, 3R cap, no R filter | 19 | 10.5% | -0.677 | -12.87 | 12.87 |
+| 4h, 0.05%, 3R cap, min 1R | 19 | 10.5% | -0.674 | -12.80 | 12.80 |
+| 4h, 0.05%, 3R cap, no R filter | 19 | 10.5% | -0.674 | -12.80 | 12.80 |
+| 1h+4h, $0.05, 1.5R cap, min 1R | 21 | 38.1% | -0.277 | -5.81 | 6.72 |
+| 1h+4h, $0.05, 1.5R cap, no R filter | 22 | 36.4% | -0.309 | -6.80 | 7.73 |
+| 1h+4h, 0.05%, 1.5R cap, min 1R | 22 | 36.4% | -0.304 | -6.69 | 7.61 |
+| 1h+4h, 0.05%, 1.5R cap, no R filter | 23 | 34.8% | -0.334 | -7.68 | 8.61 |
+| 1h+4h, $0.05, 2R cap, min 1R | 29 | 34.5% | -0.263 | -7.62 | 8.60 |
+| 1h+4h, $0.05, 2R cap, no R filter | 30 | 33.3% | -0.287 | -8.61 | 9.94 |
+| 1h+4h, 0.05%, 2R cap, min 1R | 30 | 33.3% | -0.286 | -8.58 | 9.53 |
+| 1h+4h, 0.05%, 2R cap, no R filter | 31 | 32.3% | -0.309 | -9.57 | 10.87 |
+| 1h+4h, $0.05, 3R cap, min 1R | 38 | 28.9% | -0.240 | -9.13 | 10.96 |
+| 1h+4h, $0.05, 3R cap, no R filter | 39 | 28.2% | -0.260 | -10.12 | 11.09 |
+| 1h+4h, 0.05%, 3R cap, min 1R | 38 | 28.9% | -0.239 | -9.09 | 10.98 |
+| 1h+4h, 0.05%, 3R cap, no R filter | 39 | 28.2% | -0.258 | -10.08 | 11.03 |
+| 1h/15m baseline | 36 | 27.8% | -0.286 | -10.31 | 18.59 |
+| adaptive study (cited) | 34 | 47.1% | +0.108 | +3.69 | 5.45 |
+
+### In sample (first 60 days)
+
+| Variant | Trades | Win rate | Avg R | Total R | Max DD (R) |
+|---|---:|---:|---:|---:|---:|
+| 1h, $0.05, 1.5R cap, min 1R | 9 | 66.7% | +0.265 | +2.38 | 2.09 |
+| 1h, $0.05, 1.5R cap, no R filter | 10 | 60.0% | +0.139 | +1.39 | 2.18 |
+| 1h, 0.05%, 1.5R cap, min 1R | 9 | 66.7% | +0.275 | +2.48 | 2.06 |
+| 1h, 0.05%, 1.5R cap, no R filter | 10 | 60.0% | +0.149 | +1.49 | 2.11 |
+| 1h, $0.05, 2R cap, min 1R | 12 | 58.3% | +0.259 | +3.11 | 2.68 |
+| 1h, $0.05, 2R cap, no R filter | 13 | 53.8% | +0.163 | +2.12 | 2.68 |
+| 1h, 0.05%, 2R cap, min 1R | 13 | 53.8% | +0.167 | +2.17 | 2.67 |
+| 1h, 0.05%, 2R cap, no R filter | 14 | 50.0% | +0.084 | +1.18 | 2.67 |
+| 1h, $0.05, 3R cap, min 1R | 16 | 50.0% | +0.372 | +5.96 | 4.18 |
+| 1h, $0.05, 3R cap, no R filter | 17 | 47.1% | +0.292 | +4.97 | 4.18 |
+| 1h, 0.05%, 3R cap, min 1R | 16 | 50.0% | +0.377 | +6.03 | 4.19 |
+| 1h, 0.05%, 3R cap, no R filter | 17 | 47.1% | +0.296 | +5.04 | 4.19 |
+| 4h, $0.05, 1.5R cap, min 1R | 9 | 11.1% | -0.801 | -7.21 | 7.21 |
+| 4h, $0.05, 1.5R cap, no R filter | 9 | 11.1% | -0.801 | -7.21 | 7.21 |
+| 4h, 0.05%, 1.5R cap, min 1R | 9 | 11.1% | -0.798 | -7.18 | 7.18 |
+| 4h, 0.05%, 1.5R cap, no R filter | 9 | 11.1% | -0.798 | -7.18 | 7.18 |
+| 4h, $0.05, 2R cap, min 1R | 11 | 18.2% | -0.584 | -6.42 | 6.98 |
+| 4h, $0.05, 2R cap, no R filter | 11 | 18.2% | -0.584 | -6.42 | 6.98 |
+| 4h, 0.05%, 2R cap, min 1R | 11 | 18.2% | -0.578 | -6.36 | 6.97 |
+| 4h, 0.05%, 2R cap, no R filter | 11 | 18.2% | -0.578 | -6.36 | 6.97 |
+| 4h, $0.05, 3R cap, min 1R | 14 | 14.3% | -0.564 | -7.89 | 9.97 |
+| 4h, $0.05, 3R cap, no R filter | 14 | 14.3% | -0.564 | -7.89 | 9.97 |
+| 4h, 0.05%, 3R cap, min 1R | 14 | 14.3% | -0.559 | -7.82 | 9.96 |
+| 4h, 0.05%, 3R cap, no R filter | 14 | 14.3% | -0.559 | -7.82 | 9.96 |
+| 1h+4h, $0.05, 1.5R cap, min 1R | 16 | 43.8% | -0.177 | -2.83 | 4.19 |
+| 1h+4h, $0.05, 1.5R cap, no R filter | 18 | 38.9% | -0.268 | -4.82 | 6.18 |
+| 1h+4h, 0.05%, 1.5R cap, min 1R | 17 | 41.2% | -0.218 | -3.71 | 5.10 |
+| 1h+4h, 0.05%, 1.5R cap, no R filter | 19 | 36.8% | -0.300 | -5.70 | 7.09 |
+| 1h+4h, $0.05, 2R cap, min 1R | 21 | 38.1% | -0.190 | -4.00 | 6.37 |
+| 1h+4h, $0.05, 2R cap, no R filter | 23 | 34.8% | -0.260 | -5.98 | 8.36 |
+| 1h+4h, 0.05%, 2R cap, min 1R | 22 | 36.4% | -0.225 | -4.95 | 6.32 |
+| 1h+4h, 0.05%, 2R cap, no R filter | 24 | 33.3% | -0.289 | -6.94 | 8.31 |
+| 1h+4h, $0.05, 3R cap, min 1R | 28 | 32.1% | -0.148 | -4.13 | 9.28 |
+| 1h+4h, $0.05, 3R cap, no R filter | 30 | 30.0% | -0.204 | -6.12 | 10.41 |
+| 1h+4h, 0.05%, 3R cap, min 1R | 28 | 32.1% | -0.146 | -4.09 | 9.33 |
+| 1h+4h, 0.05%, 3R cap, no R filter | 30 | 30.0% | -0.203 | -6.08 | 10.37 |
+| 1h/15m baseline | 27 | 22.2% | -0.461 | -12.44 | 18.59 |
+| adaptive study (cited) | 20 | 45.0% | +0.064 | +1.27 | 5.45 |
+
+### Out of sample (last 30 days)
+
+| Variant | Trades | Win rate | Avg R | Total R | Max DD (R) |
+|---|---:|---:|---:|---:|---:|
+| 1h, $0.05, 1.5R cap, min 1R | 3 | 0.0% | -0.998 | -2.99 | 2.99 |
+| 1h, $0.05, 1.5R cap, no R filter | 2 | 0.0% | -0.998 | -2.00 | 2.00 |
+| 1h, 0.05%, 1.5R cap, min 1R | 3 | 0.0% | -0.997 | -2.99 | 2.99 |
+| 1h, 0.05%, 1.5R cap, no R filter | 2 | 0.0% | -0.996 | -1.99 | 1.99 |
+| 1h, $0.05, 2R cap, min 1R | 5 | 20.0% | -0.529 | -2.65 | 2.65 |
+| 1h, $0.05, 2R cap, no R filter | 4 | 25.0% | -0.413 | -1.65 | 1.99 |
+| 1h, 0.05%, 2R cap, min 1R | 5 | 20.0% | -0.529 | -2.64 | 2.64 |
+| 1h, 0.05%, 2R cap, no R filter | 4 | 25.0% | -0.412 | -1.65 | 1.99 |
+| 1h, $0.05, 3R cap, min 1R | 6 | 16.7% | -0.503 | -3.02 | 3.02 |
+| 1h, $0.05, 3R cap, no R filter | 5 | 20.0% | -0.405 | -2.02 | 2.99 |
+| 1h, 0.05%, 3R cap, min 1R | 6 | 16.7% | -0.503 | -3.02 | 3.02 |
+| 1h, 0.05%, 3R cap, no R filter | 5 | 20.0% | -0.404 | -2.02 | 2.99 |
+| 4h, $0.05, 1.5R cap, min 1R | 3 | 33.3% | -0.287 | -0.86 | 1.99 |
+| 4h, $0.05, 1.5R cap, no R filter | 3 | 33.3% | -0.287 | -0.86 | 1.99 |
+| 4h, 0.05%, 1.5R cap, min 1R | 3 | 33.3% | -0.288 | -0.86 | 1.99 |
+| 4h, 0.05%, 1.5R cap, no R filter | 3 | 33.3% | -0.288 | -0.86 | 1.99 |
+| 4h, $0.05, 2R cap, min 1R | 4 | 25.0% | -0.359 | -1.44 | 1.99 |
+| 4h, $0.05, 2R cap, no R filter | 4 | 25.0% | -0.359 | -1.44 | 1.99 |
+| 4h, 0.05%, 2R cap, min 1R | 4 | 25.0% | -0.359 | -1.44 | 1.99 |
+| 4h, 0.05%, 2R cap, no R filter | 4 | 25.0% | -0.359 | -1.44 | 1.99 |
+| 4h, $0.05, 3R cap, min 1R | 5 | 0.0% | -0.996 | -4.98 | 4.98 |
+| 4h, $0.05, 3R cap, no R filter | 5 | 0.0% | -0.996 | -4.98 | 4.98 |
+| 4h, 0.05%, 3R cap, min 1R | 5 | 0.0% | -0.996 | -4.98 | 4.98 |
+| 4h, 0.05%, 3R cap, no R filter | 5 | 0.0% | -0.996 | -4.98 | 4.98 |
+| 1h+4h, $0.05, 1.5R cap, min 1R | 5 | 20.0% | -0.595 | -2.98 | 2.98 |
+| 1h+4h, $0.05, 1.5R cap, no R filter | 4 | 25.0% | -0.495 | -1.98 | 1.99 |
+| 1h+4h, 0.05%, 1.5R cap, min 1R | 5 | 20.0% | -0.595 | -2.97 | 2.97 |
+| 1h+4h, 0.05%, 1.5R cap, no R filter | 4 | 25.0% | -0.494 | -1.98 | 1.99 |
+| 1h+4h, $0.05, 2R cap, min 1R | 8 | 25.0% | -0.454 | -3.63 | 3.63 |
+| 1h+4h, $0.05, 2R cap, no R filter | 7 | 28.6% | -0.376 | -2.63 | 2.99 |
+| 1h+4h, 0.05%, 2R cap, min 1R | 8 | 25.0% | -0.453 | -3.63 | 3.63 |
+| 1h+4h, 0.05%, 2R cap, no R filter | 7 | 28.6% | -0.376 | -2.63 | 2.99 |
+| 1h+4h, $0.05, 3R cap, min 1R | 10 | 20.0% | -0.500 | -5.00 | 5.00 |
+| 1h+4h, $0.05, 3R cap, no R filter | 9 | 22.2% | -0.445 | -4.00 | 4.00 |
+| 1h+4h, 0.05%, 3R cap, min 1R | 10 | 20.0% | -0.500 | -5.00 | 5.00 |
+| 1h+4h, 0.05%, 3R cap, no R filter | 9 | 22.2% | -0.445 | -4.00 | 4.00 |
+| 1h/15m baseline | 9 | 44.4% | +0.236 | +2.12 | 3.34 |
+| adaptive study (cited) | 14 | 50.0% | +0.173 | +2.42 | 2.34 |
+
+### Capped-target verdict
+
+the pre-registered variant did not beat the 1h/15m baseline out of sample: expectancy was not higher; total R was not higher.
+
+Every capped row lost money on the last 30 days. The full-window gains on 1h with a 2R or 3R cap are in the first 60 days, and those same rows are negative out of sample. That is not a setting to ship.
+
+**Recommendation: Do not install, including in dry run. Leave `strategy_variant: default`.**
+<!-- FVG_RR_CAP_END -->

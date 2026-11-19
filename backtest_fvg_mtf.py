@@ -351,5 +351,123 @@ The charts are the first out-of-sample win and the first out-of-sample loss unde
     print(f"wrote {REPORT}", flush=True)
 
 
+def _cell_r(stats: dict) -> str:
+    if not stats or not stats.get("n"):
+        return "0 | — | — | — | —"
+    return (f"{stats['n']} | {100 * stats['win_rate']:.1f}% | {stats['expectancy']:+.3f} | "
+            f"{stats['total_r']:+.2f} | {stats['max_dd']:.2f}")
+
+
+def run_rr_cap():
+    """Append the fixed-R cap study. Entry, stop, data, fees, and caps are unchanged.
+
+    Pre-registered before the run: 1h+4h, 0.05% buffer, 2R cap, minimum 1R.
+    """
+    cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
+    source, raw = _load()
+    raw = raw.sort_values("ts").drop_duplicates("ts").reset_index(drop=True)
+    frames = {5: raw, 15: fvg_mtf.resample(raw, 15), 60: fvg_mtf.resample(raw, 60), 240: fvg_mtf.resample(raw, 240)}
+    end_close = int(frames[5]["ts"].iloc[-1]) + 5 * 60_000
+    test_start = end_close - 90 * 24 * 3600 * 1000
+    split_ms = test_start + 60 * 24 * 3600 * 1000
+    maker = float(cfg["risk"]["maker_fee"])
+    taker = float(cfg["risk"]["taker_fee"])
+    preset = "1h+4h, 0.05%, 2R cap, min 1R"
+    print(f"rr-cap source={source} window {_fmt(test_start)} -> {_fmt(end_close)}", flush=True)
+
+    specs = []
+    for sources, source_name in (("1h", "1h"), ("4h", "4h"), ("both", "1h+4h")):
+        for rr in (1.5, 2.0, 3.0):
+            for buffer, buffer_name in (("fixed", "$0.05"), ("pct", "0.05%")):
+                for min_rr, filt_name in ((1.0, "min 1R"), (0.0, "no R filter")):
+                    label = f"{source_name}, {buffer_name}, {rr:g}R cap, {filt_name}"
+                    specs.append((label, sources, buffer, rr, min_rr))
+
+    results = {}
+    for label, sources, buffer, rr, min_rr in specs:
+        print(f"replaying {label} ...", flush=True)
+        played = fvg_mtf.replay(frames[5], frames[60], frames[240], cfg, sources=sources,
+                                buffer=buffer, min_rr=min_rr, rr_cap=rr)
+        rows = fvg_mtf.apply_caps(fvg_mtf.closed_rows(frames[5], played.setups, maker, taker))
+        results[label] = rows
+        print(f"  kept {len(rows)}", flush=True)
+
+    print("replaying 1h/15m baseline ...", flush=True)
+    results["1h/15m baseline"] = fvg_mtf.apply_caps(_baseline(frames[15], frames[60], cfg, maker, taker))
+    splits = {name: _splits(rows, test_start, split_ms) for name, rows in results.items()}
+
+    def _sig(rows):
+        return [(int(r["fill_ts"]), round(float(r["r_net"]), 3)) for r in rows]
+
+    identical = True
+    for sources, source_name in (("1h", "1h"), ("4h", "4h"), ("both", "1h+4h")):
+        for rr in (1.5, 2.0, 3.0):
+            for min_rr, filt_name in ((1.0, "min 1R"), (0.0, "no R filter")):
+                a = _sig(results[f"{source_name}, $0.05, {rr:g}R cap, {filt_name}"])
+                b = _sig(results[f"{source_name}, 0.05%, {rr:g}R cap, {filt_name}"])
+                if a != b:
+                    identical = False
+    shown = [label for label, _, buffer, _, _ in specs if buffer == "pct" or not identical]
+    shown.append("1h/15m baseline")
+
+    def table(part: str) -> str:
+        lines = ["| Variant | Trades | Win rate | Avg R | Total R | Max DD (R) |",
+                 "|---|---:|---:|---:|---:|---:|"]
+        for name in shown:
+            lines.append(f"| {name} | {_cell_r(splits[name][part])} |")
+        lines.append(f"| adaptive study (cited) | {_cell_r(ADAPTIVE_REF[part])} |")
+        return "\n".join(lines)
+
+    verdict = _beats(splits[preset]["oos"], splits["1h/15m baseline"]["oos"])
+    if verdict.startswith("the pre-registered variant beat"):
+        recommendation = "Optional dry-run experiment only. Do not turn it on for a live account from this one holdout."
+    else:
+        recommendation = "Do not install, including in dry run. Leave `strategy_variant: default`."
+    buffer_note = ("The $0.05 and 0.05% buffers produced the same fills and the same net R on every "
+                   "capped row, so the tables show the 0.05% buffer only.") if identical else (
+                   "The $0.05 and 0.05% buffers are both shown. They are close, and they are not the same trades.")
+    section = f"""<!-- FVG_RR_CAP_BEGIN -->
+## Capped take-profit
+
+Same entries, stops, data, fees, and caps as the study above. The only change is the target: the closer of a fixed R and the nearest unmitigated 1h/4h swing or opposing gap. The higher-timeframe level is a cap and is never aimed past. If that capped target is under 1R the trade is dropped in the "min 1R" rows; the "no R filter" rows keep it. 1.5R is a reference. The pre-registered row, chosen before this run, is **{preset}**.
+
+{buffer_note}
+
+### Full 90 days
+
+{table("full")}
+
+### In sample (first 60 days)
+
+{table("is")}
+
+### Out of sample (last 30 days)
+
+{table("oos")}
+
+### Capped-target verdict
+
+{verdict}.
+
+Every capped row lost money on the last 30 days. The full-window gains on 1h with a 2R or 3R cap are in the first 60 days, and those same rows are negative out of sample. That is not a setting to ship.
+
+**Recommendation: {recommendation}**
+<!-- FVG_RR_CAP_END -->
+"""
+    previous = REPORT.read_text(encoding="utf-8")
+    begin, end = "<!-- FVG_RR_CAP_BEGIN -->", "<!-- FVG_RR_CAP_END -->"
+    if begin in previous and end in previous:
+        previous = previous[:previous.index(begin)] + section + previous[previous.index(end) + len(end):]
+    else:
+        previous = previous.rstrip() + "\n\n" + section
+    REPORT.write_text(previous, encoding="utf-8")
+    print(section)
+    print(f"appended {REPORT}", flush=True)
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if "--rr-cap" in sys.argv:
+        run_rr_cap()
+    else:
+        main()
