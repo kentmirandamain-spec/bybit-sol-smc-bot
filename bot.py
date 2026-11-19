@@ -421,7 +421,29 @@ class Bot:
             log.debug("today pnl failed: %s", e)
 
     # ---------------------------------------------------------- evaluate ----
+    def _reload_dry_config(self):
+        """Pick up a config the daily learner wrote. Live trading keeps the config it started with."""
+        if not self.dry:
+            return
+        path = ROOT / "config.yaml"
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            return
+        prev = getattr(self, "_cfg_mtime", None)
+        self._cfg_mtime = mtime
+        if prev is None or mtime == prev:
+            return
+        new = load_config(path)
+        if new.get("dry_run") is not True:
+            log.info("config.yaml changed but is not a dry run; leaving the running config as it was")
+            return
+        self.cfg = new
+        self.rc = new["risk"]
+        log.info("Dry run reloaded config.yaml for the next bar")
+
     def evaluate(self):
+        self._reload_dry_config()
         ltf, htf = self.fetch()
         if len(ltf) < 200 or len(htf) < 50:
             log.warning("Not enough candles (ltf=%d htf=%d)", len(ltf), len(htf))

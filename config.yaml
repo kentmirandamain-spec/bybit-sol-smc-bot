@@ -75,3 +75,5 @@ learning:
   max_filters: 3
   l2: 1.0
   auto_apply_dry_run: false
+  session_skip: ""         # Asia | London | NY | Off | empty. The daily learner may set this.
+  score_active: false      # true only after a study adopted a score cutoff

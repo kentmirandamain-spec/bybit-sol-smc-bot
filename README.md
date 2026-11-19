@@ -186,6 +186,14 @@ The bot writes every setup it sees — taken, skipped, or expired, from a backte
 
 Ran 19 Nov 2026. Bybit's public klines were blocked, so the download used OKX SOL-USDT-SWAP. 81 setups, **39** closed trades that fit the 5 USDT size rules. Win rate **25.6%** (95% interval about 15–41%), expectancy **−0.32R**, total **−12.4R**, max drawdown **19.5R**. The last 4 weeks held out only **9** trades and the training window had **30**, under the 40 / 20 minimum, so **no filter and no score cutoff were adopted**. There is no out-of-sample improvement to show. The full window is still a losing strategy; the guard is doing its job by refusing to invent a rule from a handful of trades.
 
+### Daily pass
+
+`python learn_daily.py` (or `install_daily_learning.bat`, which schedules 00:15 local time) refreshes a rolling cache of about 200 days, mixes in this bot's own dry-run and live journal, and retries a small grid around the current settings: CHoCH on/off, higher-timeframe bias, order-block vs fair-value-gap entry, sweep lookback, R target from 1.5 to 3, a score cutoff, and a session skip. It never changes more than two of those at once.
+
+A candidate replaces `config.yaml` only when `dry_run: true`, the last 30 days were not used to fit the score, that window has at least 20 trades, net R after fees is higher, and max drawdown is not more than 20% worse. Otherwise the current config stays. If `dry_run` is false, the same result is written to `state/learning/proposal.json` and shown on the Learning tab for Apply / Reject. Every applied file is copied to `state/learning/configs/config_YYYYMMDD.yaml` so it can be restored. `state/learning/learning_log.jsonl` records the decision.
+
+The first run on this machine (OKX data, Bybit blocked) kept the score and session filters off and would have turned higher-timeframe bias off: last-30-day net R went from +1.91R (9 trades, 44.4% wins, 2.97R drawdown) to +5.55R (22 trades, 45.5% wins, +0.25R expectancy, 2.42R drawdown). That change is **not** the default in this repository. Re-tuning every day can fit noise. A better out-of-sample month is not a promise about the next one. The 20-trade floor, the two-change limit, the drawdown cap, and the live-mode confirmation are there to slow that down. The dry-run bot reloads `config.yaml` on the next closed bar after a change.
+
 ## Backtest notes
 `backtest.py` uses Bybit public klines by default. If Bybit blocks your IP use `--source okx`
 (OKX SOL-USDT-SWAP – very close to Bybit's price, not identical). Limit fills when price trades

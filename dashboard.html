@@ -379,6 +379,28 @@ pre.out{margin:0;background:#05070a;border:1px solid var(--line);border-radius:1
           <div class="card kpi"><div class="l">Score gate</div><div class="v" id="ln-score">Off</div><div class="s" id="ln-score-s">until enough data</div></div>
         </div>
         <div class="card" style="margin-bottom:14px">
+          <h3>Daily learning</h3>
+          <dl class="rows">
+            <dt>Last run</dt><dd id="dy-last">–</dd>
+            <dt>Next run</dt><dd id="dy-next">00:15 local time</dd>
+            <dt>Decision</dt><dd id="dy-dec">–</dd>
+          </dl>
+          <div class="note" id="dy-why">The daily pass keeps a rolling candle cache and tries at most two setting changes. It replaces the config only in dry run, and only when the last 30 days improve net R without a drawdown more than 20% worse, with at least 20 held-out trades. Live trading writes a proposal instead.</div>
+          <div class="sgrid" style="margin-top:12px">
+            <div><h3>Current out-of-sample</h3><div id="dy-now" class="empty">No daily run yet.</div></div>
+            <div><h3>Previous run</h3><div id="dy-prev" class="empty">–</div></div>
+          </div>
+          <div class="chartwrap" style="height:160px;margin-top:12px"><canvas id="dyeq"></canvas></div>
+          <div id="dyprop" style="margin-top:12px"></div>
+          <div class="toolbar">
+            <button class="btn b-go" id="bDayApply" type="button" onclick="applyDaily()" disabled>Apply daily proposal</button>
+            <button class="btn b-warn" id="bDayReject" type="button" onclick="rejectDaily()" disabled>Reject</button>
+            <select id="dyfile" style="width:auto;max-width:240px"></select>
+            <button class="btn" id="bDayBack" type="button" onclick="rollbackDaily()">Restore snapshot</button>
+          </div>
+          <div class="tbl" style="max-height:220px;margin-top:10px"><table><thead><tr><th>Date</th><th>Decision</th><th>Why</th></tr></thead><tbody id="dyhist"></tbody></table></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
           <h3>Cumulative R <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:500">closed tradable trades</span></h3>
           <div class="chartwrap" style="height:180px"><canvas id="leq"></canvas></div>
         </div>
@@ -502,7 +524,7 @@ function parseBacktest(j){const o=j.output||'';const m=o.match(/\[net of est\. f
 
 /* ---------- learning ---------- */
 function rTxt(x){return x==null?'–':((x>0?'+':'')+Number(x).toFixed(3)+' R')}
-function drawEquity(points){const cv=$('leq');if(!cv)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
+function drawEquity(points,canvasId){const cv=$(canvasId||'leq');if(!cv)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
   cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
   if(!points||points.length<2){g.fillStyle='#5a6779';g.font='12px sans-serif';g.fillText('No closed trades in the journal yet',16,H/2);return}
   const ys=points.map(p=>p.r);let lo=Math.min(0,...ys),hi=Math.max(0,...ys);if(hi-lo<1e-6){hi+=1;lo-=1}
@@ -534,8 +556,22 @@ function loadLearning(){api('/api/learning').then(j=>{
       <dt>With score</dt><dd>${p.adopt_score?(m.n+' · '+_fmtStat(m)):'not adopted'}</dd>
       <dt>Status</dt><dd>${esc(p.status||'')}</dd></dl>`;}
   const pending=p&&p.status==='pending'&&p.adoptable;$('bApply').disabled=!pending;$('bReject').disabled=!(p&&p.status==='pending');
-  requestAnimationFrame(()=>drawEquity(j.equity||[]));
+  const d=j.daily||{};
+  $('dy-last').textContent=d.last_run?new Date(d.last_run*1000).toLocaleString():'never';
+  $('dy-next').textContent=d.next_run||'00:15 local time';
+  $('dy-dec').textContent=d.last_decision||(d.due?'due':'–');
+  if(d.last_reason)$('dy-why').textContent=d.last_reason;
+  const fmt=s=>!s||s.n==null?'no metrics':`${s.n} trades · win ${s.win_rate==null?'–':(100*s.win_rate).toFixed(0)+'%'} · ${rTxt(s.expectancy)} · total ${rTxt(s.total_r)} · DD ${s.max_dd==null?'–':Number(s.max_dd).toFixed(2)+'R'}`;
+  $('dy-now').textContent=fmt(d.oos);
+  $('dy-prev').textContent=d.previous?((d.previous.decision||'')+' · '+fmt(d.previous.oos)):'No earlier run.';
+  const dp=d.proposal||{};
+  $('dyprop').innerHTML=dp.status==='pending'?`<div class="warnbox">${esc(dp.reason||'')}<div class="note">${(dp.changes||[]).map(c=>esc(c.param+' '+c.from+' → '+c.to)).join('<br>')}</div></div>`:'';
+  $('bDayApply').disabled=dp.status!=='pending';$('bDayReject').disabled=dp.status!=='pending';
+  $('dyfile').innerHTML=(d.configs||[]).map(c=>`<option value="${esc(c.file)}">${esc(c.file)}</option>`).join('')||'<option value="">No snapshots</option>';
+  $('dyhist').innerHTML=(d.history||[]).slice().reverse().map(h=>`<tr><td>${esc(h.date||'')}</td><td>${esc(h.decision||'')}</td><td>${esc(h.reason||'')}</td></tr>`).join('')||'<tr><td colspan=3 class="empty" style="padding:12px">No daily runs yet.</td></tr>';
+  requestAnimationFrame(()=>{drawEquity(j.equity||[]);drawDailyEquity(d.oos_equity||[])});
 }).catch(e=>{$('lnout').textContent=e.message})}
+function drawDailyEquity(values){drawEquity((values||[]).map(r=>({r})),'dyeq')}
 function _fmtStat(s){if(!s||s.win_rate==null)return '–';return `${(100*s.win_rate).toFixed(0)}% win · ${rTxt(s.expectancy)} · DD ${s.max_dd==null?'–':s.max_dd.toFixed(2)+'R'}`}
 function rebuildLearn(){modal('Rebuild the learning journal?','This downloads public candles, replays the strategy and writes a proposal. It does not change config unless dry-run auto-apply is on in config.yaml.','','Rebuild',async ok=>{
   if(!ok)return;try{const j=await api('/api/learning/rebuild',{confirm:true,days:+val('lndays'),source:val('lnsrc')});toast(j.message);pollJob(j.job,$('lnout'),$('bLearn'),()=>loadLearning())}catch(e){toast(e.message,true)}})}
@@ -543,6 +579,13 @@ function applyLearn(){modal('Apply this learning proposal?','Turns learning on i
   if(!ok)return;try{const j=await api('/api/learning/apply',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
 function rejectLearn(){modal('Reject this proposal?','The proposal is marked rejected. config.yaml stays as it is.','','Reject',async ok=>{
   if(!ok)return;try{const j=await api('/api/learning/reject',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+function applyDaily(){modal('Apply the daily proposal?','This replaces config.yaml with the candidate. A snapshot of both files is kept under state/learning/configs. In dry run the bot reloads it on the next bar.','','Apply',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/daily-apply',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+function rejectDaily(){modal('Reject the daily proposal?','config.yaml stays as it is.','','Reject',async ok=>{
+  if(!ok)return;try{const j=await api('/api/learning/daily-reject',{confirm:true});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
+function rollbackDaily(){const file=val('dyfile');if(!file){toast('No snapshot to restore',true);return}
+  modal('Restore this config snapshot?','Writes '+file+' over config.yaml. The file you have now is saved as a new snapshot first.','','Restore',async ok=>{
+    if(!ok)return;try{const j=await api('/api/learning/rollback-config',{confirm:true,file});toast(j.message);loadLearning()}catch(e){toast(e.message,true)}})}
 
 /* ---------- updates ---------- */
 function paintAbout(a){if(!a)return;ABOUT=a;

@@ -32,6 +32,7 @@ import yaml
 from dotenv import load_dotenv
 
 import learn
+import learn_daily
 import updater
 
 ROOT = Path(__file__).resolve().parent
@@ -531,7 +532,9 @@ class Handler(BaseHTTPRequestHandler):
             j = JOBS.get(jid)
             return self._json(j if j else {"error": "unknown job"}, 200 if j else 404)
         if path == "/api/learning":
-            return self._json(learn.dashboard_view(ROOT, load_cfg()))
+            view = learn.dashboard_view(ROOT, load_cfg())
+            view["daily"] = learn_daily.status(ROOT)
+            return self._json(view)
         if path == "/api/about":
             meta = updater.read_installed(ROOT)
             commit = meta.get("commit") if isinstance(meta.get("commit"), str) else None
@@ -633,6 +636,22 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("A study or update is already running")
                 jid = run_custom_job("learn", lambda job_id, d=days, src=source: _run_learn(job_id, d, src))
                 return self._json({"ok": True, "job": jid, "message": f"Learning study started ({days} days)"})
+            if path == "/api/learning/daily-apply":
+                if data.get("confirm") is not True:
+                    raise ValueError("Applying the daily proposal needs confirm=true")
+                proposal = learn_daily.apply_pending(ROOT)
+                return self._json({"ok": True, "message": "Daily proposal applied. The dry-run bot reloads it on the next bar.",
+                                   "saved": proposal.get("saved_config")})
+            if path == "/api/learning/daily-reject":
+                if data.get("confirm") is not True:
+                    raise ValueError("Rejecting the daily proposal needs confirm=true")
+                learn_daily.reject_pending(ROOT)
+                return self._json({"ok": True, "message": "Daily proposal rejected. Config was not changed."})
+            if path == "/api/learning/rollback-config":
+                if data.get("confirm") is not True:
+                    raise ValueError("Restoring a config needs confirm=true")
+                result = learn_daily.rollback_config(ROOT, str(data.get("file") or ""))
+                return self._json({"ok": True, "message": f"Restored {result['restored']}.", "result": result})
             if path == "/api/learning/apply":
                 if data.get("confirm") is not True:
                     raise ValueError("Applying a learning proposal needs confirm=true")
@@ -697,6 +716,16 @@ def main():
         print("Tip: set DASHBOARD_PASSWORD=... in .env to require a password.")
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+
+    def _catch_up_learning():
+        try:
+            if learn_daily.due(ROOT):
+                print("Last daily learning run is more than 24 hours old. Starting a catch-up run.")
+                learn_daily.run(ROOT, on_progress=print)
+        except Exception as exc:
+            print(f"Daily learning catch-up did not finish: {exc}")
+
+    threading.Thread(target=_catch_up_learning, daemon=True).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

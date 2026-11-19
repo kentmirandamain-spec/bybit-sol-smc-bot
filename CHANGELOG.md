@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 - 2026-11-19
+
+- Daily learning (`learn_daily.py`) keeps a rolling candle cache and retries a small neighborhood of settings, at most two changes at a time. It replaces `config.yaml` only while `dry_run` is true, and only when the last 30 days have at least 20 trades, higher net R after fees, and a drawdown no more than 20% worse. Live mode writes `state/learning/proposal.json` and waits for Apply. Snapshots go to `state/learning/configs/`, with a log at `state/learning/learning_log.jsonl`.
+- Windows: `install_daily_learning.bat` / `uninstall_daily_learning.bat` schedule the pass at 00:15 local time for the current user. The dashboard starts a catch-up if the last run is older than 24 hours. A dry-run bot reloads `config.yaml` on the next bar.
+- First run (19 Nov 2026, OKX because Bybit was blocked): current rules on the last 30 days were 9 trades, 44.4% wins, +0.21R expectancy, +1.91R total, 2.97R drawdown. Turning higher-timeframe bias off produced 22 trades, 45.5% wins, +0.25R expectancy, +5.55R total, 2.42R drawdown, so the dry-run on this machine applied that one change. The repository default stays `use_htf_bias: true`; one 30-day window is not a reason to ship a new default. Continuous re-optimization can overfit. Past results do not guarantee future results.
+
 ## 1.0.0 - 2026-11-18
 
 - Initial release of the Bybit SOLUSDT Smart Money Concepts bot and the local Grok Bot dashboard.

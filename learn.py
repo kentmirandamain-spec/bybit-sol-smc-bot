@@ -875,6 +875,9 @@ def decide(root: Path, cfg: dict, features: dict) -> dict:
     features = features or {}
     model = load_model(root)
     score = score_row(model, _score_features(features)) if model else None
+    skip = str(lc.get("session_skip") or "").strip()
+    if skip and features.get("session") == skip:
+        return {"allowed": False, "reason": f"session filter skips {skip}", "score": score}
     if not lc.get("enabled"):
         return {"allowed": True, "reason": "", "score": score}
     for f in load_filters(root):
@@ -884,7 +887,8 @@ def decide(root: Path, cfg: dict, features: dict) -> dict:
     min_score = float(lc.get("min_score") or 0)
     closed = count_closed(root)
     need = int(lc.get("min_trades", 100))
-    if model and min_score > 0 and closed >= need and score is not None and score < min_score:
+    score_ready = bool(lc.get("score_active")) or closed >= need
+    if model and min_score > 0 and score_ready and score is not None and score < min_score:
         return {"allowed": False, "reason": f"score {score:.0f} is below {min_score:.0f}", "score": score}
     return {"allowed": True, "reason": "", "score": score}
 
